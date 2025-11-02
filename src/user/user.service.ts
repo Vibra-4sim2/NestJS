@@ -1,0 +1,75 @@
+import { Injectable, NotFoundException } from '@nestjs/common';
+import { CreateUserDto } from './dto/create-user.dto';
+import { UpdateUserDto } from './dto/update-user.dto';
+import { User, UserDocument } from './entities/user.entity';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
+import * as bcrypt from 'bcrypt';
+
+@Injectable()
+export class UserService {
+ async setUserImage(id: string, filename: string): Promise<User | null> {
+    const user = await this.userModel.findByIdAndUpdate(
+      id,
+      { avatar: filename },
+      { new: true },
+    ).exec();
+
+    if (!user) throw new NotFoundException(`User with id ${id} not found`);
+
+    return user;
+  }
+
+  constructor(@InjectModel(User.name) private userModel: Model<UserDocument>) { }
+
+  async create(createUserDto: CreateUserDto): Promise<User> {
+    // ensure password is hashed
+    const saltRounds = 10;
+    const hashed = await bcrypt.hash((createUserDto as any).password, saltRounds);
+    const toSave: any = { ...createUserDto, password: hashed, role: (createUserDto as any).role ?? 'USER' };
+    const newUser = new this.userModel(toSave);
+    return newUser.save();
+  }
+
+  async findAll(): Promise<User[]> {
+    return this.userModel.find().exec();
+  }
+
+  async findOneById(id: string): Promise<User | null> {
+    return this.userModel.findById(id).exec().catch(err => { throw new NotFoundException('id not found') })
+  }
+
+  async findOneByEmail(email: string): Promise<(User & { _id: string }) | null> {
+    return this.userModel
+      .findOne({ email })
+      .lean<User & { _id: string }>()
+      .exec();
+  }
+
+  //returns first user with the same name
+  async findOneByFirstName(name: string): Promise<User | null> {
+    return this.userModel.findOne({ firstName: name }).exec().catch(err => { throw new NotFoundException('name not found') })
+  }
+
+  //returns all users with the same firstname
+  async findAllbyFirstName(name: string): Promise<User[] | null> {
+    return this.userModel.find({ firstName: name }).exec().catch(err => { throw new NotFoundException('name not found') })
+  }
+
+  async update(id: string, updateUserDto: UpdateUserDto): Promise<User | null> {
+    // prevent direct password change without hashing here; if provided, hash it
+    const update: any = { ...updateUserDto };
+    if ((updateUserDto as any).password) {
+      update.password = await bcrypt.hash((updateUserDto as any).password, 10);
+    }
+    return this.userModel.findByIdAndUpdate(id, update, { new: true }).exec()
+    .catch(err => { throw new NotFoundException('id not found') })
+  }
+
+  async remove(id: string): Promise<User | null> {
+    return this.userModel.findByIdAndDelete(id).exec().catch(err => { throw new NotFoundException('id not found') })
+  }
+
+}
+
+

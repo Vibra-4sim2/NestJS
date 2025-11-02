@@ -1,0 +1,27 @@
+import { Type } from 'class-transformer';
+import { IsEmail, IsEnum, IsInt, IsOptional, IsString, Max, Min, MinLength } from 'class-validator';
+
+export class CreateUserDto {
+  @IsString()
+  firstName: string;
+
+
+  
+
+  @IsEmail()
+  email: string;
+
+  
+
+  @IsOptional()
+  @IsString()
+  avatar?: string;
+
+  @IsString()
+  @MinLength(6)
+  password: string;
+
+  @IsOptional()
+  @IsEnum(['ADMIN', 'USER'] as any)
+  role?: 'ADMIN' | 'USER';
+}
