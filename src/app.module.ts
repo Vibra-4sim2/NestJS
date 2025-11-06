@@ -3,23 +3,31 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { LoggerMiddleware } from './logger/logger.middleware';
-
+import { ConfigModule } from '@nestjs/config';
 import { UserModule } from './user/user.module';
 import { AuthModule } from './auth/auth.module';
+import { MailModule } from './mail/mail.module';
 
 @Module({
   imports: [
+    // ✅ Load environment variables globally
+    ConfigModule.forRoot({
+      isGlobal: true,
+    }),
+
+    // ✅ Database connection
+    MongooseModule.forRoot('mongodb://localhost/DAM'),
+
+    // ✅ App feature modules
     UserModule,
-    
-    MongooseModule.forRoot('mongodb://localhost/DAM', ),
     AuthModule,
+    MailModule,
   ],
   controllers: [AppController],
   providers: [AppService],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
-    // all routes
     consumer.apply(LoggerMiddleware).forRoutes('*');
   }
 }

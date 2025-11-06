@@ -22,6 +22,12 @@ export class User {
 
     @Prop({ type: String, required: true, enum: ['ADMIN', 'USER'], default: 'USER' })
     role: 'ADMIN' | 'USER';
+    @Prop({ type: String, required: false })
+    resetCode?: string;
+
+    @Prop({ type: Date, required: false })
+    resetCodeExpires?: Date;
+
 }
 
 //TS version

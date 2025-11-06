@@ -5,6 +5,7 @@ import { AuthController } from './auth.controller';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { RolesGuard } from './roles.guard';
 import { UserModule } from '../user/user.module';
+import { MailModule } from 'src/mail/mail.module';
 
 @Module({
   imports: [
@@ -13,6 +14,7 @@ import { UserModule } from '../user/user.module';
       signOptions: { expiresIn: '1h' },
     }),
     forwardRef(() => UserModule),
+     MailModule,
   ],
   controllers: [AuthController],
   providers: [AuthService, JwtAuthGuard, RolesGuard],
