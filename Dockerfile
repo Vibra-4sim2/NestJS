@@ -1,23 +1,34 @@
-# Use Node 20 (lightweight)
-FROM node:20-alpine
+# ---------- Stage 1: Build the NestJS App ----------
+FROM node:18-alpine AS builder
 
-# Set working directory
+# Create app directory
 WORKDIR /app
 
-# Copy package files
+# Copy package files and install dependencies
 COPY package*.json ./
+RUN npm install
 
-# Install dependencies
-RUN npm install --only=production
-
-# Copy the rest of the files
+# Copy source code
 COPY . .
 
-# Build the project
+# Build NestJS app
 RUN npm run build
 
-# Expose the port Nest runs on
-EXPOSE 3000
 
-# Start the app
+# ---------- Stage 2: Run the App ----------
+FROM node:18-alpine
+
+WORKDIR /app
+
+# Copy built app and dependencies from builder
+COPY --from=builder /app ./
+
+# Set environment variables
+ENV NODE_ENV=production
+ENV PORT=10000
+
+# Expose the app port (Render uses this)
+EXPOSE 10000
+
+# Start command
 CMD ["node", "dist/main.js"]
