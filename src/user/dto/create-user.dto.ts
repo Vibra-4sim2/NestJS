@@ -5,14 +5,16 @@ export class CreateUserDto {
   @IsString()
   firstName: string;
 
-
-  
+@IsString()
+  lastName: string;
+  @IsString()
+  Gender: string;
 
   @IsEmail()
   email: string;
 
   
-
+ 
   @IsOptional()
   @IsString()
   avatar?: string;

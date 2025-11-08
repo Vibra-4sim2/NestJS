@@ -17,6 +17,8 @@ export class AuthController {
       example: {
         _id: '67117a4a9f19a4f4b2f4be92',
         firstName: 'Amine',
+        lastName: 'Mami',
+        Gender: 'Male',
         email: 'amine@example.com',
         avatar: '',
         role: 'USER',

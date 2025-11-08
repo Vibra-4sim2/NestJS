@@ -71,7 +71,7 @@ export class UserController {
 
   @ApiOperation({ summary: 'Get one user by id' })
   @ApiParam({ name: 'id', type: 'string' })
-  @ApiOkResponse({ schema: { example: { _id: '67117a4a9f19a4f4b2f4be92', firstName: 'Alice', email: 'alice@example.com', avatar: '', role: 'USER' } } })
+  @ApiOkResponse({ schema: { example: { _id: '67117a4a9f19a4f4b2f4be92', firstName: 'Alice', lastName: 'Doe', Gender: 'Female', email: 'alice@example.com', avatar: '', role: 'USER' } } })
   findOne(@Param('id') id: string) {
     return this.userService.findOneById(id);
   }
@@ -79,7 +79,7 @@ export class UserController {
   @Get()
 
   @ApiOperation({ summary: 'Get all users' })
-  @ApiOkResponse({ schema: { example: [{ _id: '67117a4a9f19a4f4b2f4be92', firstName: 'Alice', email: 'alice@example.com',  avatar: '', role: 'USER' }] } })
+  @ApiOkResponse({ schema: { example: [{ _id: '67117a4a9f19a4f4b2f4be92', firstName: 'Alice', lastName: 'Doe', Gender: 'Female', email: 'alice@example.com', avatar: '', role: 'USER' }] } })
   findAll() {
     return this.userService.findAll();
   }
