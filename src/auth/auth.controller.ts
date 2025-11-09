@@ -3,11 +3,15 @@ import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { CreateUserDto } from '../user/dto/create-user.dto';
 import { ApiBadRequestResponse, ApiBody, ApiCreatedResponse, ApiOkResponse, ApiOperation, ApiTags ,} from '@nestjs/swagger';
+import { UserService } from '../user/user.service';
 
 @ApiTags('auth')
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly userService: UserService,
+  ) {}
 
   @Post('register')
   @ApiOperation({ summary: 'Register a new user ' })
@@ -84,7 +88,10 @@ export class AuthController {
     schema: { example: { message: 'Password reset successful' } },
   })
   async resetPassword(@Body() body: { email: string; code: string; newPassword: string }) {
-    return this.authService.resetPassword(body.email, body.code, body.newPassword);
+    // 1) verify code using AuthService
+    await this.authService.verifyResetCode(body.email, body.code);
+    // 2) set (and hash) the password using UserService
+    await this.userService.updatePasswordByEmail(body.email, body.newPassword);
+    return { message: 'Password reset successful' };
   }
-
 }

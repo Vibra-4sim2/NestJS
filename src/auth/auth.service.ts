@@ -11,8 +11,9 @@ import { randomBytes } from 'crypto';
 @Injectable()
 export class AuthService {
   constructor(
-    @Inject(forwardRef(() => UserService)) private readonly usersService: UserService,
-    private readonly jwtService: JwtService,
+    @Inject(forwardRef(() => UserService))
+     private readonly usersService: UserService,
+     private readonly jwtService: JwtService,
      private readonly mailService: MailService,
   ) {}
 

@@ -3,12 +3,12 @@ import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { User, UserDocument } from './entities/user.entity';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { HydratedDocument, Model } from 'mongoose';
 import * as bcrypt from 'bcrypt';
 
 @Injectable()
 export class UserService {
- async setUserImage(id: string, filename: string): Promise<User | null> {
+  async setUserImage(id: string, filename: string): Promise<User | null> {
     const user = await this.userModel.findByIdAndUpdate(
       id,
       { avatar: filename },
@@ -68,6 +68,30 @@ export class UserService {
 
   async remove(id: string): Promise<User | null> {
     return this.userModel.findByIdAndDelete(id).exec().catch(err => { throw new NotFoundException('id not found') })
+  }
+
+  // Helper: set (and hash) a new password by user id
+  async setPassword(id: string, rawPassword: string): Promise<User> {
+    const hashed = await bcrypt.hash(rawPassword, 10);
+    const user = await this.userModel.findByIdAndUpdate(
+      id,
+      { password: hashed },
+      { new: true },
+    ).exec();
+    if (!user) throw new NotFoundException(`User with id ${id} not found`);
+    return user;
+  }
+
+  // Helper: update (and hash) password by email (used in reset password flows)
+  async updatePasswordByEmail(email: string, rawPassword: string): Promise<User> {
+    const hashed = await bcrypt.hash(rawPassword, 10);
+    const user = await this.userModel.findOneAndUpdate(
+      { email },
+      { password: hashed },
+      { new: true },
+    ).exec();
+    if (!user) throw new NotFoundException(`User with email ${email} not found`);
+    return user;
   }
 
 }
