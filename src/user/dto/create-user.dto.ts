@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { IsEmail, IsEnum, IsInt, IsOptional, IsString, Max, Min, MinLength } from 'class-validator';
+import { IsDateString, IsEmail, IsEnum, IsInt, IsOptional, IsString, Max, Min, MinLength } from 'class-validator';
 
 export class CreateUserDto {
   @IsString()
@@ -13,7 +13,8 @@ export class CreateUserDto {
   @IsEmail()
   email: string;
 
-  
+  @IsDateString()
+  birthday?: string;
  
   @IsOptional()
   @IsString()
