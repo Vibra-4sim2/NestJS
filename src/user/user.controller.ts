@@ -24,49 +24,30 @@ export class UserController {
     return this.userService.create(createUserDto);
   }
 
-  @Post(':id/upload')
-  
- 
-  @ApiOperation({ summary: 'Upload user avatar ' })
-  @UseInterceptors(
-    FileInterceptor('file', {
-      storage: diskStorage({
-        destination: './uploads',
-        filename: (req, file, cb) => {
-          const randomName = Date.now() + '-' + Math.round(Math.random() * 1e9);
-          const ext = extname(file.originalname);
-          cb(null, `${randomName}${ext}`);
-        },
-      }),
-      fileFilter: (req, file, cb) => {
-        if (!file.mimetype.match(/\/(jpg|jpeg|png|gif)$/)) {
-          cb(new Error('Only image files are allowed!'), false);
-        } else {
-          cb(null, true);
-        }
-      },
-      limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
-    }),
-  )
-  @ApiConsumes('multipart/form-data')
-  @ApiBody({
-    schema: {
-      type: 'object',
-      properties: {
-        file: { type: 'string', format: 'binary' },
-      },
+ @Post(':id/upload')
+@ApiOperation({ summary: 'Upload user avatar to Cloudinary' })
+@UseInterceptors(FileInterceptor('file'))
+@ApiConsumes('multipart/form-data')
+@ApiBody({
+  schema: {
+    type: 'object',
+    properties: {
+      file: { type: 'string', format: 'binary' },
     },
-  })
-  async uploadFile(
-    @Param('id') id: string,
-    @UploadedFile() file: Express.Multer.File,
-  ) {
-    if (!file) {
-      return { message: 'No file uploaded' };
-    }
-
-    return this.userService.setUserImage(id, file.filename);
+  },
+})
+async uploadFile(
+  @Param('id') id: string,
+  @UploadedFile() file: Express.Multer.File,
+) {
+  if (!file) {
+    return { message: 'No file uploaded' };
   }
+
+  // We now send the file buffer to Cloudinary
+  return this.userService.setUserImage(id, file);
+}
+
   @Get(':id')
 
   @ApiOperation({ summary: 'Get one user by id' })

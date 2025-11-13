@@ -5,20 +5,22 @@ import { User, UserDocument } from './entities/user.entity';
 import { InjectModel } from '@nestjs/mongoose';
 import { HydratedDocument, Model } from 'mongoose';
 import * as bcrypt from 'bcrypt';
-
+import cloudinary from 'src/config/cloudinary.config';
+import * as streamifier from 'streamifier';
 @Injectable()
 export class UserService {
-  async setUserImage(id: string, filename: string): Promise<User | null> {
-    const user = await this.userModel.findByIdAndUpdate(
-      id,
-      { avatar: filename },
-      { new: true },
-    ).exec();
+async setUserImage(id: string, file: Express.Multer.File): Promise<User> {
+  const imageUrl = await this.uploadToCloudinary(file);
 
-    if (!user) throw new NotFoundException(`User with id ${id} not found`);
+  const user = await this.userModel
+    .findByIdAndUpdate(id, { avatar: imageUrl }, { new: true })
+    .exec();
 
-    return user;
-  }
+  if (!user) throw new NotFoundException(`User with id ${id} not found`);
+
+  return user;
+}
+
 
   constructor(@InjectModel(User.name) private userModel: Model<UserDocument>) { }
 
@@ -93,6 +95,28 @@ export class UserService {
     if (!user) throw new NotFoundException(`User with email ${email} not found`);
     return user;
   }
+
+
+async uploadToCloudinary(file: Express.Multer.File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const uploadStream = cloudinary.uploader.upload_stream(
+      { folder: 'avatars' },
+      (error, result) => {
+        if (error) return reject(error);
+        if (!result || !result.secure_url) {
+          return reject(new Error('Cloudinary upload failed or returned no URL'));
+        }
+        resolve(result.secure_url);
+      },
+    );
+    streamifier.createReadStream(file.buffer)
+      .on('error', reject)
+      .pipe(uploadStream);
+  });
+}
+
+
+
 
 }
 
