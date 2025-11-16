@@ -8,15 +8,26 @@ dotenv.config();
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
-  app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
+
+  // Enable validation pipe globally
+  app.useGlobalPipes(new ValidationPipe({ transform: true }));
   app.useGlobalFilters(new HttpExceptionFilter());
 
-  // Swagger setup
+  // Swagger configuration
   const config = new DocumentBuilder()
-    .setTitle('DAM API')
-    .setDescription('API documentation for user and authentication management')
+    .setTitle('DAM 4Sim2 API')
+    .setDescription(
+      'Complete API for managing Sorties, Campings, and Participations',
+    )
     .setVersion('1.0')
-    .addBearerAuth({ type: 'http', scheme: 'bearer', bearerFormat: 'JWT' }, 'JWT')
+    .addBearerAuth(
+      {
+        type: 'http',
+        scheme: 'bearer',
+        bearerFormat: 'JWT',
+      },
+      'access_token',
+    )
     .build();
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api', app, document);

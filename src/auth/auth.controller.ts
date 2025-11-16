@@ -4,6 +4,10 @@ import { LoginDto } from './dto/login.dto';
 import { CreateUserDto } from '../user/dto/create-user.dto';
 import { ApiBadRequestResponse, ApiBody, ApiCreatedResponse, ApiOkResponse, ApiOperation, ApiTags ,} from '@nestjs/swagger';
 import { UserService } from '../user/user.service';
+import { GoogleLoginDto } from './dto/google-login.dto';
+
+
+
 
 @ApiTags('auth')
 @Controller('auth')
@@ -94,4 +98,42 @@ export class AuthController {
     await this.userService.updatePasswordByEmail(body.email, body.newPassword);
     return { message: 'Password reset successful' };
   }
+
+
+
+  //authgoogle
+//   @Post('google')
+// @ApiOperation({ summary: 'Sign in with Google' })
+// @ApiOkResponse({
+//   description: 'JWT token',
+//   schema: { example: { access_token: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...' } },
+// })
+// @ApiBadRequestResponse({ description: 'Invalid Google token' })
+// async googleSignIn(@Body('idToken') idToken: string) {
+//   return this.authService.googleSignIn(idToken);
+// }
+@Post('google')
+@ApiOperation({ summary: 'Sign in with Google' })
+@ApiOkResponse({
+  description: 'JWT token',
+  schema: { example: { access_token: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...' } },
+})
+@ApiBadRequestResponse({ description: 'Invalid Google token' })
+async googleLogin(@Body() dto: GoogleLoginDto) {
+  try {
+    console.log('========== CONTROLLER GOOGLE LOGIN ==========');
+    console.log('Received DTO:', dto);
+    console.log('ID Token:', dto.idToken?.substring(0, 50));
+    
+    const result = await this.authService.googleSignIn(dto.idToken);
+    
+    console.log('✅ Result:', result);
+    return result;
+  } catch (error) {
+    console.error('========== CONTROLLER ERROR ==========');
+    console.error('Error:', error.message);
+    console.error('Stack:', error.stack);
+    throw error;
+  }
+}
 }

@@ -8,6 +8,9 @@ import { UserModule } from './user/user.module';
 import { AuthModule } from './auth/auth.module';
 import { MailModule } from './mail/mail.module';
 import { PreferencesModule } from './preferences/preferences.module';
+import { CampingModule } from './camping/camping.module';
+import { SortieModule } from './sortie/sortie.module';
+import { ParticipationModule } from './participation/participation.module';
 
 @Module({
   imports: [
@@ -17,7 +20,7 @@ import { PreferencesModule } from './preferences/preferences.module';
     }),
 
     // ✅ Database connection
-      MongooseModule.forRootAsync({
+    MongooseModule.forRootAsync({
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({
         uri: config.getOrThrow<string>('MONGO_URI'),
@@ -29,6 +32,9 @@ import { PreferencesModule } from './preferences/preferences.module';
     AuthModule,
     MailModule,
     PreferencesModule,
+    CampingModule,
+    SortieModule,
+    ParticipationModule,
   ],
   controllers: [AppController],
   providers: [AppService],
