@@ -13,8 +13,10 @@ export class CreateUserDto {
   @IsEmail()
   email: string;
 
-  @IsDateString()
-  birthday?: string;
+
+@IsDateString()
+birthday?: string;
+  
  
   @IsOptional()
   @IsString()

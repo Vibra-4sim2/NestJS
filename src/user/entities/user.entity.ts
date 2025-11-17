@@ -16,9 +16,6 @@ export class User {
     @Prop({ type: String, required: true })
     Gender: string;
     
-    @Prop({ type: Date, required: false })
-    birthday?: Date;
-    
     @Prop({ type: String, required: true, unique: true })
     email: string;
    
@@ -35,6 +32,9 @@ export class User {
 
     @Prop({ type: Date, required: false })
     resetCodeExpires?: Date;
+
+     @Prop({ type: Date, required: false })
+    birthday?: Date;
 
 }
 

@@ -1,11 +1,33 @@
 
-import { IsBoolean, IsEnum, IsInt, IsOptional, Max, Min } from 'class-validator';
+
+import { Type } from 'class-transformer';
+import { IsBoolean, IsEnum, IsInt, IsOptional, IsString, Max, Min,IsNumber, ValidateNested, IsArray } from 'class-validator';
+
+
+
+class LocationDto {
+  @IsNumber()
+  latitude: number;
+
+  @IsNumber()
+  longitude: number;
+}
+
+class AvailableTimeDto {
+  @IsString()
+  start: string;
+
+  @IsString()
+  end: string;
+}
+
+
 
 export class CreatePreferencesDto {
   @IsOptional() @IsEnum(['BEGINNER', 'INTERMEDIATE', 'ADVANCED'] as const)
   level?: 'BEGINNER' | 'INTERMEDIATE' | 'ADVANCED';
 
- 
+
    // ---- VÉLO ----
   @IsOptional()
   @IsEnum(['VTT', 'ROUTE', 'GRAVEL', 'URBAIN', 'ELECTRIQUE'] as const)
@@ -47,5 +69,38 @@ export class CreatePreferencesDto {
 
   @IsOptional()
   @IsEnum(['1NUIT', 'WEEKEND', '3-5J', '>1SEMAINE'] as const)
-  campingDuration?: '1NUIT' | 'WEEKEND' | '3-5J' | '>1SEMAINE';
+
+  campingDuration?: '1NUIT' | 'WEEKEND' | '3-5J' | '>1SEMAINE';$
+  
+
+
+
+
+@IsOptional()
+  @ValidateNested()
+  @Type(() => LocationDto)
+  location?: LocationDto;
+
+  // ---- NEW: AVAILABLE DAYS ----
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  availableDays?: string[];
+
+  // ---- NEW: AVAILABLE TIME ----
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => AvailableTimeDto)
+  availableTime?: AvailableTimeDto;
+
+  // ---- NEW: AVERAGE SPEED ----
+  @IsOptional()
+  @IsNumber()
+  averageSpeed?: number;
+
+
+
+
+
+
 }

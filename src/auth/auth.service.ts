@@ -1,3 +1,4 @@
+
 import { ConflictException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
@@ -8,14 +9,28 @@ import { User } from '../user/entities/user.entity';
 import { MailService } from 'src/mail/mail.service';
 import { randomBytes } from 'crypto';
 
+import { OAuth2Client } from 'google-auth-library';
+import { UserDocument } from '../user/entities/user.entity';
+
+
+
+
 @Injectable()
 export class AuthService {
+    private googleClient: OAuth2Client;
+
   constructor(
     @Inject(forwardRef(() => UserService))
      private readonly usersService: UserService,
      private readonly jwtService: JwtService,
      private readonly mailService: MailService,
-  ) {}
+  ) {
+    const googleClientId = process.env.GOOGLE_CLIENT_ID;
+    if (!googleClientId) {
+      throw new Error('GOOGLE_CLIENT_ID is not defined in .env');
+    }
+    this.googleClient = new OAuth2Client(googleClientId);
+  }
 
   async validateUser(email: string, password: string) {
     const user = await this.usersService.findOneByEmail(email);
@@ -98,6 +113,72 @@ async requestPasswordReset(email: string) {
   }
 
 
+
+
+  
+async googleSignIn(idToken: string) {
+  console.log('========== GOOGLE SIGN-IN SERVICE ==========');
+  console.log('🔵 Received ID Token:', idToken.substring(0, 50) + '...');
+  console.log('🔑 Google Client ID:', process.env.GOOGLE_CLIENT_ID);
+  
+  try {
+    console.log('🔍 Verifying token with Google...');
+    
+    const ticket = await this.googleClient.verifyIdToken({
+      idToken,
+      audience: process.env.GOOGLE_CLIENT_ID!,
+    });
+    
+    console.log('✅ Token verified successfully');
+    
+    const payload = ticket.getPayload();
+    if (!payload) {
+      console.error('❌ Payload is null');
+      throw new UnauthorizedException('Invalid Google token');
+    }
+
+    console.log('📧 Email from Google:', payload.email);
+    console.log('👤 Name:', payload.name);
+    
+    const email = payload.email!;
+    let user: any = await this.usersService.findOneByEmail(email);
+
+    if (!user) {
+      console.log('📝 User not found, creating new user...');
+      user = await this.usersService.create({
+        firstName: payload.given_name || '',
+        lastName: payload.family_name || '',
+        Gender: 'NotSpecified',
+        email: email,
+        avatar: payload.picture || '',
+        role: 'USER',
+        password: '', 
+      } as any);
+      console.log('✅ New user created:', user._id);
+    } else {
+      console.log('👤 Existing user found:', user._id);
+    }
+
+    console.log('🎟️ Generating JWT token...');
+    const result = await this.login({
+      _id: user._id.toString(),
+      email: user.email,
+      role: user.role,
+    });
+    
+    console.log('✅ JWT generated successfully');
+    console.log('==========================================');
+    return result;
+    
+  } catch (error) {
+    console.error('========== GOOGLE SIGN-IN ERROR ==========');
+    console.error('❌ Error type:', error.constructor.name);
+    console.error('❌ Error message:', error.message);
+    console.error('❌ Stack trace:', error.stack);
+    console.error('==========================================');
+    throw error;
+  }
+}
 
 
 }

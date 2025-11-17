@@ -47,6 +47,38 @@ export class Preferences {
   campingDuration?: '1NUIT' | 'WEEKEND' | '3-5J' | '>1SEMAINE';
 
 
+
+  @Prop({
+  type: {
+    latitude: Number,
+    longitude: Number,
+  },
+  required: false
+})
+location: {
+  latitude: number;
+  longitude: number;
+};
+@Prop({ type: [String], required: false })
+availableDays?: string[]; // ['SATURDAY', 'SUNDAY']
+
+@Prop({
+  type: {
+    start: String,
+    end: String
+  },
+  required: false,
+})
+availableTime?: {
+  start: string; // "08:00"
+  end: string;   // "12:00"
+};
+@Prop({ type: Number, required: false })
+averageSpeed?: number; // km/h
+
+
+
+
   @Prop({ type: Boolean, default: false })
   onboardingComplete: boolean;
 }
