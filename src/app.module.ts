@@ -13,6 +13,7 @@ import { CampingModule } from './camping/camping.module';
 import { SortieModule } from './sortie/sortie.module';
 import { ParticipationModule } from './participation/participation.module';
 import { PublicationModule } from './publication/publication.module';
+import { ChatModule } from './chat/chat.module';
 
 @Module({
   imports: [
@@ -37,7 +38,8 @@ import { PublicationModule } from './publication/publication.module';
     CampingModule,
     SortieModule,
     ParticipationModule,
-    PublicationModule
+    PublicationModule,
+    ChatModule, // ✅ Real-time chat module
   ],
   controllers: [AppController],
   providers: [AppService],

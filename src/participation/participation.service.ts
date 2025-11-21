@@ -4,6 +4,8 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  Inject,
+  forwardRef,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
@@ -11,6 +13,7 @@ import { Participation, ParticipationDocument } from './entities/participation.s
 import { CreateParticipationDto } from './dto/create-participation.dto';
 import { ParticipationStatus } from '../enums/participation-status.enum';
 import { SortieService } from '../sortie/sortie.service';
+import { ChatService } from '../chat/chat.service';
 
 @Injectable()
 export class ParticipationService {
@@ -18,6 +21,8 @@ export class ParticipationService {
     @InjectModel(Participation.name)
     private participationModel: Model<ParticipationDocument>,
     private sortieService: SortieService,
+    @Inject(forwardRef(() => ChatService))
+    private chatService: ChatService,
   ) {}
 
   async create(
@@ -158,5 +163,64 @@ export class ParticipationService {
       })
       .populate('userId', 'name email')
       .exec();
+  }
+
+  /**
+   * Update participation status (e.g., accept or reject)
+   * When status changes to ACCEPTEE, add user to chat
+   */
+  async updateStatus(
+    participationId: string,
+    status: ParticipationStatus,
+    adminUserId: string,
+  ): Promise<ParticipationDocument> {
+    if (!Types.ObjectId.isValid(participationId)) {
+      throw new BadRequestException('Invalid participation ID');
+    }
+
+    const participation = await this.participationModel.findById(participationId);
+    if (!participation) {
+      throw new NotFoundException('Participation not found');
+    }
+
+    // Verify that the admin is the creator of the sortie
+    const sortie = await this.sortieService.findOne(participation.sortieId.toString());
+    if (!sortie.createurId.equals(new Types.ObjectId(adminUserId))) {
+      throw new ForbiddenException('Only the sortie creator can update participation status');
+    }
+
+    const previousStatus = participation.status;
+    participation.status = status;
+    const updatedParticipation = await participation.save();
+
+    // ✅ If participation is accepted, add user to chat
+    if (status === ParticipationStatus.ACCEPTEE && previousStatus !== ParticipationStatus.ACCEPTEE) {
+      try {
+        await this.chatService.addUserToChat(
+          participation.sortieId,
+          participation.userId,
+        );
+      } catch (error) {
+        console.error('Failed to add user to chat:', error.message);
+        // Don't fail the status update if chat update fails
+      }
+    }
+
+    // ✅ If participation is rejected, remove user from chat
+    if (
+      status === ParticipationStatus.REFUSEE &&
+      previousStatus === ParticipationStatus.ACCEPTEE
+    ) {
+      try {
+        await this.chatService.removeUserFromChat(
+          participation.sortieId,
+          participation.userId,
+        );
+      } catch (error) {
+        console.error('Failed to remove user from chat:', error.message);
+      }
+    }
+
+    return updatedParticipation;
   }
 }

@@ -3,6 +3,8 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  Inject,
+  forwardRef,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
@@ -11,6 +13,7 @@ import { CreateSortieDto, UpdateSortieDto } from './dto/sortie.dto';
 import { SortieType } from '../enums/sortie-type.enum';
 import { CampingService } from '../camping/camping.service';
 import { CreateCampingDto } from '../camping/camping.dto';
+import { ChatService } from '../chat/chat.service';
 import cloudinary from 'src/config/cloudinary.config';
 import * as streamifier from 'streamifier';
 
@@ -20,6 +23,8 @@ export class SortieService {
   constructor(
     @InjectModel(Sortie.name) private sortieModel: Model<SortieDocument>,
     private campingService: CampingService,
+    @Inject(forwardRef(() => ChatService))
+    private chatService: ChatService,
   ) {}
 
 
@@ -105,7 +110,21 @@ async create(
     };
 
     const sortie = new this.sortieModel(sortieData);
-    return sortie.save();
+    const savedSortie = await sortie.save();
+
+    // ✅ CREATE CHAT FOR THE SORTIE AUTOMATICALLY
+    try {
+      await this.chatService.createChatForSortie(
+        savedSortie._id as Types.ObjectId,
+        savedSortie.createurId,
+        savedSortie.titre, // Use sortie title as chat name
+      );
+    } catch (error) {
+      // Log error but don't fail sortie creation
+      console.error('Failed to create chat for sortie:', error.message);
+    }
+
+    return savedSortie;
   }
 
   async findAll(): Promise<SortieDocument[]> {

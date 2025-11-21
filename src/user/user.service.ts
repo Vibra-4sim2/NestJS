@@ -1,9 +1,9 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { User, UserDocument } from './entities/user.entity';
 import { InjectModel } from '@nestjs/mongoose';
-import { HydratedDocument, Model } from 'mongoose';
+import { HydratedDocument, Model, Types } from 'mongoose';
 import * as bcrypt from 'bcrypt';
 import cloudinary from 'src/config/cloudinary.config';
 import * as streamifier from 'streamifier';
@@ -115,9 +115,215 @@ async uploadToCloudinary(file: Express.Multer.File): Promise<string> {
   });
 }
 
+  // ==================== FOLLOWERS SYSTEM ====================
 
+  /**
+   * Follow a user
+   */
+  async followUser(currentUserId: string, targetUserId: string) {
+    if (currentUserId === targetUserId) {
+      throw new BadRequestException('You cannot follow yourself');
+    }
+
+    const currentUser = await this.userModel.findById(currentUserId);
+    const targetUser = await this.userModel.findById(targetUserId);
+
+    if (!currentUser || !targetUser) {
+      throw new NotFoundException('User not found');
+    }
+
+    const targetObjectId = new Types.ObjectId(targetUserId);
+
+    // Check if already following
+    if (currentUser.following.some(id => id.toString() === targetUserId)) {
+      throw new BadRequestException('You are already following this user');
+    }
+
+    // Add to current user's following list
+    await this.userModel.findByIdAndUpdate(currentUserId, {
+      $addToSet: { following: targetObjectId },
+      $inc: { followingCount: 1 },
+    });
+
+    // Add to target user's followers list
+    await this.userModel.findByIdAndUpdate(targetUserId, {
+      $addToSet: { followers: new Types.ObjectId(currentUserId) },
+      $inc: { followersCount: 1 },
+    });
+
+    return {
+      success: true,
+      message: `You are now following ${targetUser.firstName} ${targetUser.lastName}`,
+    };
+  }
+
+  /**
+   * Unfollow a user
+   */
+  async unfollowUser(currentUserId: string, targetUserId: string) {
+    if (currentUserId === targetUserId) {
+      throw new BadRequestException('Invalid operation');
+    }
+
+    const currentUser = await this.userModel.findById(currentUserId);
+    if (!currentUser) {
+      throw new NotFoundException('User not found');
+    }
+
+    // Check if not following
+    if (!currentUser.following.some(id => id.toString() === targetUserId)) {
+      throw new BadRequestException('You are not following this user');
+    }
+
+    const targetObjectId = new Types.ObjectId(targetUserId);
+    const currentObjectId = new Types.ObjectId(currentUserId);
+
+    // Remove from following list
+    await this.userModel.findByIdAndUpdate(currentUserId, {
+      $pull: { following: targetObjectId },
+      $inc: { followingCount: -1 },
+    });
+
+    // Remove from followers list
+    await this.userModel.findByIdAndUpdate(targetUserId, {
+      $pull: { followers: currentObjectId },
+      $inc: { followersCount: -1 },
+    });
+
+    return {
+      success: true,
+      message: 'Successfully unfollowed user',
+    };
+  }
+
+  /**
+   * Get followers of a user
+   */
+  async getFollowers(userId: string, page = 1, limit = 20) {
+    const skip = (page - 1) * limit;
+
+    const user = await this.userModel
+      .findById(userId)
+      .populate({
+        path: 'followers',
+        select: 'firstName lastName email avatar followersCount followingCount',
+        options: { skip, limit },
+      });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    return {
+      followers: user.followers,
+      total: user.followersCount,
+      page,
+      limit,
+      totalPages: Math.ceil(user.followersCount / limit),
+    };
+  }
+
+  /**
+   * Get users that a user is following
+   */
+  async getFollowing(userId: string, page = 1, limit = 20) {
+    const skip = (page - 1) * limit;
+
+    const user = await this.userModel
+      .findById(userId)
+      .populate({
+        path: 'following',
+        select: 'firstName lastName email avatar followersCount followingCount',
+        options: { skip, limit },
+      });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    return {
+      following: user.following,
+      total: user.followingCount,
+      page,
+      limit,
+      totalPages: Math.ceil(user.followingCount / limit),
+    };
+  }
+
+  /**
+   * Check if user A is following user B
+   */
+  async isFollowing(currentUserId: string, targetUserId: string): Promise<boolean> {
+    const user = await this.userModel.findById(currentUserId);
+    if (!user) return false;
+
+    return user.following.some(id => id.toString() === targetUserId);
+  }
+
+  /**
+   * Get follow statistics
+   */
+  async getFollowStats(userId: string) {
+    const user = await this.userModel.findById(userId);
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    return {
+      followersCount: user.followersCount,
+      followingCount: user.followingCount,
+    };
+  }
+
+  /**
+   * Get mutual followers (users who follow each other)
+   */
+  async getMutualFollowers(userId: string) {
+    const user = await this.userModel.findById(userId);
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    const mutualFollowers = await this.userModel.find({
+      _id: { $in: user.following },
+      following: new Types.ObjectId(userId),
+    }).select('firstName lastName email avatar followersCount followingCount');
+
+    return {
+      mutualFollowers,
+      count: mutualFollowers.length,
+    };
+  }
+
+  /**
+   * Get follow suggestions (popular users not followed yet)
+   */
+  async getFollowSuggestions(userId: string, limit = 10) {
+    const user = await this.userModel.findById(userId);
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    const suggestions = await this.userModel
+      .find({
+        _id: {
+          $ne: userId, // Not the current user
+          $nin: user.following, // Not already following
+        },
+      })
+      .sort({ followersCount: -1 }) // Sort by popularity
+      .limit(limit)
+      .select('firstName lastName email avatar followersCount followingCount');
+
+    return {
+      suggestions,
+      count: suggestions.length,
+    };
+  }
 
 
 }
+
+
 
 

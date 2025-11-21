@@ -1,5 +1,5 @@
 import { Prop, Schema, SchemaFactory } from "@nestjs/mongoose";
-import { HydratedDocument } from "mongoose";
+import { HydratedDocument, Types } from "mongoose";
 //for the js version :
 // import mongoose from "mongoose";
 
@@ -36,10 +36,27 @@ export class User {
      @Prop({ type: Date, required: false })
     birthday?: Date;
 
+    // Followers system
+    @Prop({ type: [{ type: Types.ObjectId, ref: 'User' }], default: [] })
+    followers: Types.ObjectId[];
+
+    @Prop({ type: [{ type: Types.ObjectId, ref: 'User' }], default: [] })
+    following: Types.ObjectId[];
+
+    @Prop({ type: Number, default: 0 })
+    followersCount: number;
+
+    @Prop({ type: Number, default: 0 })
+    followingCount: number;
+
 }
 
 //TS version
 export const userSchema = SchemaFactory.createForClass(User)
+
+// Add indexes for better performance
+userSchema.index({ followers: 1 });
+userSchema.index({ following: 1 });
 
 //JS version
 // export const userSchema = new mongoose.Schema(

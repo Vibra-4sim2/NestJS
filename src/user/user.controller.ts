@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UploadedFile, UseInterceptors, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UploadedFile, UseInterceptors, UseGuards, Request, Query } from '@nestjs/common';
 import { UserService } from './user.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
@@ -8,7 +8,7 @@ import { extname } from 'path';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
-import { ApiBearerAuth, ApiBody, ApiConsumes, ApiOkResponse, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiBody, ApiConsumes, ApiOkResponse, ApiOperation, ApiParam, ApiTags, ApiQuery } from '@nestjs/swagger';
 
 @ApiTags('users')
 @ApiBearerAuth('JWT')
@@ -83,6 +83,87 @@ async uploadFile(
     return this.userService.remove(id);
   }
 
+  // ==================== FOLLOWERS ENDPOINTS ====================
+
+  @Post(':userId/follow')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Follow a user' })
+  @ApiParam({ name: 'userId', description: 'ID of the user to follow' })
+  async followUser(@Param('userId') targetUserId: string, @Request() req: any) {
+    const currentUserId = req.user?.sub || req.user?.userId || req.user?.id;
+    return this.userService.followUser(currentUserId, targetUserId);
+  }
+
+  @Delete(':userId/follow')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Unfollow a user' })
+  @ApiParam({ name: 'userId', description: 'ID of the user to unfollow' })
+  async unfollowUser(@Param('userId') targetUserId: string, @Request() req: any) {
+    const currentUserId = req.user?.sub || req.user?.userId || req.user?.id;
+    return this.userService.unfollowUser(currentUserId, targetUserId);
+  }
+
+  @Get(':userId/followers')
+  @ApiOperation({ summary: 'Get followers of a user' })
+  @ApiParam({ name: 'userId', description: 'ID of the user' })
+  @ApiQuery({ name: 'page', required: false, type: Number, description: 'Page number' })
+  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Items per page' })
+  async getFollowers(
+    @Param('userId') userId: string,
+    @Query('page') page?: number,
+    @Query('limit') limit?: number,
+  ) {
+    return this.userService.getFollowers(userId, Number(page) || 1, Number(limit) || 20);
+  }
+
+  @Get(':userId/following')
+  @ApiOperation({ summary: 'Get users that a user is following' })
+  @ApiParam({ name: 'userId', description: 'ID of the user' })
+  @ApiQuery({ name: 'page', required: false, type: Number, description: 'Page number' })
+  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Items per page' })
+  async getFollowing(
+    @Param('userId') userId: string,
+    @Query('page') page?: number,
+    @Query('limit') limit?: number,
+  ) {
+    return this.userService.getFollowing(userId, Number(page) || 1, Number(limit) || 20);
+  }
+
+  @Get(':userId/follow-stats')
+  @ApiOperation({ summary: 'Get follow statistics for a user' })
+  @ApiParam({ name: 'userId', description: 'ID of the user' })
+  async getFollowStats(@Param('userId') userId: string) {
+    return this.userService.getFollowStats(userId);
+  }
+
+  @Get(':userId/is-following')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Check if current user is following another user' })
+  @ApiParam({ name: 'userId', description: 'ID of the user to check' })
+  async isFollowing(@Param('userId') targetUserId: string, @Request() req: any) {
+    const currentUserId = req.user?.sub || req.user?.userId || req.user?.id;
+    const isFollowing = await this.userService.isFollowing(currentUserId, targetUserId);
+    return { isFollowing };
+  }
+
+  @Get(':userId/mutual-followers')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Get mutual followers (users who follow each other)' })
+  @ApiParam({ name: 'userId', description: 'ID of the user' })
+  async getMutualFollowers(@Param('userId') userId: string) {
+    return this.userService.getMutualFollowers(userId);
+  }
+
+  @Get('suggestions/follow')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Get follow suggestions based on popularity' })
+  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Number of suggestions' })
+  async getFollowSuggestions(@Request() req: any, @Query('limit') limit?: number) {
+    const currentUserId = req.user?.sub || req.user?.userId || req.user?.id;
+    return this.userService.getFollowSuggestions(currentUserId, Number(limit) || 10);
+  }
+
 
 
 }
+

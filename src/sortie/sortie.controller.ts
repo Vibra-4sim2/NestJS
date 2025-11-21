@@ -20,6 +20,7 @@ import {
   ApiBody,
   ApiBearerAuth,
   ApiConsumes,
+  ApiHeader,
 } from '@nestjs/swagger';
 import { SortieService } from './sortie.service';
 import { CreateSortieDto, UpdateSortieDto } from './dto/sortie.dto';
@@ -32,7 +33,7 @@ export class SortieController {
 
  @Post()
 @UseGuards(JwtAuthGuard)
-@ApiBearerAuth('access_token')
+@ApiBearerAuth('JWT')
 @UseInterceptors(FileInterceptor('photo'))
 @ApiConsumes('multipart/form-data')
 @ApiOperation({ summary: 'Create a new sortie (with optional photo upload)' })
@@ -198,7 +199,7 @@ async create(
 
   @Patch(':id')
   @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth('access_token')
+  @ApiBearerAuth('JWT')
   @ApiOperation({ summary: 'Mettre à jour une sortie' })
   @ApiParam({ name: 'id', description: 'ID de la sortie' })
   @ApiBody({
@@ -288,7 +289,7 @@ async create(
 
   @Delete(':id')
   @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth('access_token')
+  @ApiBearerAuth('JWT')
   @ApiOperation({ summary: 'Supprimer une sortie' })
   @ApiParam({ name: 'id', description: 'ID de la sortie' })
   @ApiResponse({ status: 200, description: 'Sortie supprimée' })

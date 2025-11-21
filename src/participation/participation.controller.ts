@@ -3,6 +3,7 @@ import {
   Post,
   Get,
   Delete,
+  Patch,
   Body,
   Param,
   Query,
@@ -21,6 +22,8 @@ import {
 import { ParticipationService } from './participation.service';
 import { CreateParticipationDto } from './participation.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { ParticipationStatus } from '../enums/participation-status.enum';
+import { JWT } from 'google-auth-library/build/src/auth/jwtclient';
 
 @ApiTags('Participations')
 @Controller('participations')
@@ -29,7 +32,7 @@ export class ParticipationController {
 
   @Post()
   @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth('access_token')
+  @ApiBearerAuth('JWT')
   @ApiOperation({ summary: 'Create participation for a sortie' })
   @ApiBody({
     type: CreateParticipationDto,
@@ -160,7 +163,7 @@ export class ParticipationController {
 
   @Delete(':id')
   @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth('access_token')
+  @ApiBearerAuth('JWT')
   @ApiOperation({ summary: 'Cancel participation (participant only)' })
   @ApiParam({ name: 'id', description: 'Participation ID' })
   @ApiResponse({ status: 200, description: 'Participation cancelled successfully' })
@@ -174,5 +177,42 @@ export class ParticipationController {
     const userId = req.user.sub;
     await this.participationService.cancelParticipation(id, userId);
     return { message: 'Participation cancelled successfully' };
+  }
+
+  @Patch(':id/status')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JWT')
+  @ApiOperation({ summary: 'Update participation status (sortie creator only)' })
+  @ApiParam({ name: 'id', description: 'Participation ID' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        status: {
+          type: 'string',
+          enum: ['EN_ATTENTE', 'ACCEPTEE', 'REFUSEE'],
+          description: 'New participation status',
+        },
+      },
+      required: ['status'],
+    },
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Participation status updated successfully. User automatically added/removed from chat.',
+  })
+  @ApiResponse({ status: 401, description: 'Unauthorized - valid JWT token required' })
+  @ApiResponse({
+    status: 403,
+    description: 'Only the sortie creator can update participation status',
+  })
+  @ApiResponse({ status: 404, description: 'Participation not found' })
+  async updateStatus(
+    @Param('id') id: string,
+    @Body('status') status: ParticipationStatus,
+    @Request() req,
+  ) {
+    const userId = req.user.sub;
+    return this.participationService.updateStatus(id, status, userId);
   }
 }
