@@ -18,6 +18,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { MessageService } from './message.service';
 import { CreateMessageDto } from './dto/message.dto';
 import { GetMessagesDto } from './dto/query.dto';
+import { ChatGateway } from './chat.gateway'; // <-- IMPORTANT: import du gateway
 
 /**
  * MessageController
@@ -28,7 +29,10 @@ import { GetMessagesDto } from './dto/query.dto';
 @Controller('messages')
 @UseGuards(JwtAuthGuard)
 export class MessageController {
-  constructor(private readonly messageService: MessageService) {}
+  constructor(
+    private readonly messageService: MessageService,
+    private readonly chatGateway: ChatGateway, // <-- IMPORTANT: injection du gateway
+  ) {}
 
   /**
    * Get messages for a chat by sortie ID
@@ -73,6 +77,9 @@ export class MessageController {
    * @param dto - Message data
    * @param req - Request object
    * @returns Created message
+   *
+   * IMPORTANT : après la création, on diffuse le message sur Socket.IO
+   * avec l'event 'receiveMessage', comme dans ChatGateway.handleSendMessage.
    */
   @Post('sortie/:sortieId')
   async sendMessage(
@@ -83,7 +90,21 @@ export class MessageController {
     console.log('🔍 req.user:', req.user);
     const userId = req.user?.userId || req.user?.sub || req.user?.id;
     console.log('🔍 Extracted userId:', userId);
-    return this.messageService.sendMessage(sortieId, userId, dto);
+
+    // 1) Envoi "classique" via le service (validation, sauvegarde, update lastMessage)
+    const message = await this.messageService.sendMessage(sortieId, userId, dto);
+
+    // 2) Diffusion temps réel via Socket.IO
+    //    Même logique que dans ChatGateway.handleSendMessage
+    const roomName = `sortie_${sortieId}`;
+    this.chatGateway.server.to(roomName).emit('receiveMessage', {
+      message,
+      sortieId,
+    });
+    console.log(`[MessageController] Broadcast receiveMessage to room ${roomName}`);
+
+    // 3) Retour au client HTTP
+    return message;
   }
 
   /**

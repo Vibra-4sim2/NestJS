@@ -223,4 +223,14 @@ export class ParticipationService {
 
     return updatedParticipation;
   }
+  async findByUser(userId: string): Promise<ParticipationDocument[]> {
+  if (!Types.ObjectId.isValid(userId)) {
+    throw new BadRequestException('Invalid user ID');
+  }
+
+  return this.participationModel
+    .find({ userId: new Types.ObjectId(userId) })
+    .populate('sortieId') // pour avoir les infos de la sortie
+    .exec();
+}
 }

@@ -215,4 +215,31 @@ export class ParticipationController {
     const userId = req.user.sub;
     return this.participationService.updateStatus(id, status, userId);
   }
+
+  @Get('user/:userId')
+@ApiOperation({ summary: 'Get participations for a user (Public)' })
+@ApiParam({ name: 'userId', description: 'User ID' })
+@ApiResponse({
+  status: 200,
+  description: 'List of participations for the user',
+  schema: {
+    example: [
+      {
+        _id: '6709d45e1c9f4c1234567891',
+        userId: '6709d45e1c9f4c1234567892',
+        sortieId: {
+          _id: '6709d45e1c9f4c123456789b',
+          titre: 'Weekend Camping Adventure',
+          type: 'CAMPING',
+        },
+        status: 'ACCEPTEE',
+        createdAt: '2024-11-14T19:50:00Z',
+        updatedAt: '2024-11-14T19:55:00Z',
+      },
+    ],
+  },
+})
+async findByUser(@Param('userId') userId: string) {
+  return this.participationService.findByUser(userId);
+}
 }
