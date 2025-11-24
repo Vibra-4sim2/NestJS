@@ -51,6 +51,7 @@ export class ParticipationController {
       },
     },
   })
+  /////////////////////////////////a23333
   @ApiResponse({
     status: 201,
     description: 'Participation created successfully',
