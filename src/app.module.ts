@@ -14,6 +14,7 @@ import { SortieModule } from './sortie/sortie.module';
 import { ParticipationModule } from './participation/participation.module';
 import { PublicationModule } from './publication/publication.module';
 import { ChatModule } from './chat/chat.module';
+import { RecommendationsModule } from './recommendations/recommendations.module';
 
 @Module({
   imports: [
@@ -40,6 +41,7 @@ import { ChatModule } from './chat/chat.module';
     ParticipationModule,
     PublicationModule,
     ChatModule, // ✅ Real-time chat module
+    RecommendationsModule, // ✅ ML-based recommendations
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -1,0 +1,12 @@
+# Modèles ML - À NE PAS commiter (fichiers volumineux)
+*.joblib
+
+# Placer ici vos 6 fichiers .joblib :
+# - preferences_scaler.joblib
+# - preferences_kmeans.joblib
+# - preferences_features.joblib
+# - sorties_scaler.joblib
+# - sorties_kmeans.joblib
+# - sorties_features.joblib
+
+# Conservez ce README pour documenter la structure attendue
