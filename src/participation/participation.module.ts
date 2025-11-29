@@ -1,6 +1,6 @@
 import { Module, forwardRef } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
-import { Participation, ParticipationSchema } from './participation.schema';
+import { Participation, ParticipationSchema } from './entities/participation.schema';
 import { ParticipationService } from './participation.service';
 import { ParticipationController } from './participation.controller';
 import { SortieModule } from '../sortie/sortie.module';

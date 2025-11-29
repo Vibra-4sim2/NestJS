@@ -14,6 +14,8 @@ import { SortieType } from '../enums/sortie-type.enum';
 import { CampingService } from '../camping/camping.service';
 import { CreateCampingDto } from '../camping/camping.dto';
 import { ChatService } from '../chat/chat.service';
+import { Participation } from '../participation/entities/participation.schema';
+import { ParticipationStatus } from '../enums/participation-status.enum';
 import cloudinary from 'src/config/cloudinary.config';
 import * as streamifier from 'streamifier';
 
@@ -22,6 +24,7 @@ import * as streamifier from 'streamifier';
 export class SortieService {
   constructor(
     @InjectModel(Sortie.name) private sortieModel: Model<SortieDocument>,
+    @InjectModel(Participation.name) private participationModel: Model<Participation>,
     private campingService: CampingService,
     @Inject(forwardRef(() => ChatService))
     private chatService: ChatService,
@@ -122,6 +125,22 @@ async create(
     } catch (error) {
       // Log error but don't fail sortie creation
       console.error('Failed to create chat for sortie:', error.message);
+    }
+
+    // ✅ CREATE AUTOMATIC PARTICIPATION FOR THE CREATOR WITH ACCEPTEE STATUS
+    try {
+      const creatorParticipation = new this.participationModel({
+        userId: savedSortie.createurId,
+        sortieId: savedSortie._id,
+        status: ParticipationStatus.ACCEPTEE,
+      });
+      const savedParticipation = await creatorParticipation.save();
+      
+      // Add participation to sortie.participants
+      await this.addParticipant(String(savedSortie._id), String(savedParticipation._id));
+    } catch (error) {
+      // Log error but don't fail sortie creation
+      console.error('Failed to create automatic participation for creator:', error.message);
     }
 
     return savedSortie;
