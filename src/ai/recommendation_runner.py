@@ -9,7 +9,16 @@ Sortie (stdout): JSON avec userCluster, sortiesWithClusters et matchedSortieIds
 import sys
 import json
 import os
-import joblib
+try:
+    import joblib  # bibliothèque de sérialisation des modèles
+except ImportError:
+    try:
+        # Ancien fallback (peu probable aujourd'hui)
+        from sklearn.externals import joblib as joblib  # type: ignore
+    except Exception:
+        print("Erreur: le module 'joblib' est introuvable. Installez-le avec 'pip install joblib' ou 'pip install -r src/ai/requirements.txt'.", file=sys.stderr)
+        sys.exit(1)
+
 import pandas as pd
 import numpy as np
 from pathlib import Path

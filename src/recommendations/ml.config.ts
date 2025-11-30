@@ -6,7 +6,13 @@ export const ML_CONFIG = {
    * Commande Python à utiliser
    * Sur Windows, vous pourriez avoir besoin de 'py' au lieu de 'python'
    */
-  pythonCommand: 'python',
+  pythonCommand:
+    // Priorité à la variable d'env explicite
+    (process.env.RECOMMENDER_PYTHON as string) ||
+    // Essais par défaut selon plateforme
+    (process.platform === 'win32'
+      ? 'py'
+      : 'python3'),
 
   /**
    * Chemin relatif vers le script Python depuis la racine du projet

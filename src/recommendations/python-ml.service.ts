@@ -3,6 +3,7 @@ import { spawn } from 'child_process';
 import { join } from 'path';
 import { MlResultDto } from './dto';
 import { ML_CONFIG } from './ml.config';
+import { resolvePythonPath } from './python-resolver';
 
 /**
  * Service pour interagir avec les scripts Python via child_process.
@@ -40,8 +41,13 @@ export class PythonMlService {
         this.logger.debug(`Nombre de sorties: ${sorties.length}`);
       }
 
+      // Résoudre la commande Python dynamiquement (env/paths)
+      const pythonCmd = resolvePythonPath() || ML_CONFIG.pythonCommand;
+      if (ML_CONFIG.verboseLogging) {
+        this.logger.debug(`Python command resolved to: ${pythonCmd}`);
+      }
       // Créer le processus Python
-      const pythonProcess = spawn(ML_CONFIG.pythonCommand, [this.pythonScriptPath], {
+      const pythonProcess = spawn(pythonCmd, [this.pythonScriptPath], {
         cwd: process.cwd(),
       });
 
@@ -134,7 +140,8 @@ export class PythonMlService {
    */
   async checkPythonAvailability(): Promise<boolean> {
     return new Promise((resolve) => {
-      const pythonProcess = spawn(ML_CONFIG.pythonCommand, ['--version']);
+      const pythonCmd = resolvePythonPath() || ML_CONFIG.pythonCommand;
+      const pythonProcess = spawn(pythonCmd, ['--version']);
 
       pythonProcess.on('close', (code) => {
         resolve(code === 0);

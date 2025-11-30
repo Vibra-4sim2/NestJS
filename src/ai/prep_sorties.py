@@ -1,3 +1,4 @@
+from typing import Optional
 import pandas as pd
 from dateutil import parser
 
@@ -12,7 +13,7 @@ SORTIES_REMOVE_TEXT_COLS = [
 SORTIES_BOOL_COLS = ["option_camping", "camping"]
 
 
-def _parse_datetime_safe(dt: str | None):
+def _parse_datetime_safe(dt: Optional[str]):
     if pd.isna(dt):
         return None
     try:

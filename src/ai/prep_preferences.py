@@ -1,3 +1,4 @@
+from typing import Optional
 import pandas as pd
 import numpy as np
 
@@ -29,7 +30,7 @@ PREF_DAYS = [
 ]
 
 
-def _parse_hour_to_float(h: str | None) -> float:
+def _parse_hour_to_float(h: Optional[str]) -> float:
     if pd.isna(h):
         return np.nan
     try:
@@ -64,7 +65,7 @@ def prepare_preferences_dataframe(df: pd.DataFrame) -> pd.DataFrame:
         for j in PREF_DAYS:
             df[f"day_{j}"] = 0
 
-        def _encode_days(val: str | None):
+        def _encode_days(val: Optional[str]):
             if pd.isna(val):
                 return set()
             return set(str(val).split("|"))
