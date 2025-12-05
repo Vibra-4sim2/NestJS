@@ -29,6 +29,18 @@ export class User extends Document {
 
   @Prop({ default: 0 })
   followingCount: number;
+
+  @Prop({
+    type: {
+      average: { type: Number, default: 0 },
+      count: { type: Number, default: 0 },
+    },
+    default: { average: 0, count: 0 },
+  })
+  creatorRatingSummary: {
+    average: number;
+    count: number;
+  };
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);

@@ -321,7 +321,25 @@ async uploadToCloudinary(file: Express.Multer.File): Promise<string> {
     };
   }
 
+  /**
+   * Update creator rating summary (used by RatingService)
+   */
+  async updateCreatorRatingSummary(
+    userId: string,
+    summary: { average: number; count: number },
+  ): Promise<void> {
+    const updated = await this.userModel
+      .findByIdAndUpdate(
+        userId,
+        { creatorRatingSummary: summary },
+        { new: true },
+      )
+      .exec();
 
+    if (!updated) {
+      throw new NotFoundException('User not found');
+    }
+  }
 }
 
 

@@ -15,6 +15,7 @@ import { ParticipationModule } from './participation/participation.module';
 import { PublicationModule } from './publication/publication.module';
 import { ChatModule } from './chat/chat.module';
 import { RecommendationsModule } from './recommendations/recommendations.module';
+import { RatingModule } from './rating/rating.module';
 
 @Module({
   imports: [
@@ -42,6 +43,7 @@ import { RecommendationsModule } from './recommendations/recommendations.module'
     PublicationModule,
     ChatModule, // ✅ Real-time chat module
     RecommendationsModule, // ✅ ML-based recommendations
+    RatingModule, // ✅ Rating system
   ],
   controllers: [AppController],
   providers: [AppService],

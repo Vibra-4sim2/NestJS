@@ -92,6 +92,18 @@ export class Sortie {
     default: [],
   })
   participants: Types.ObjectId[];
+
+  @Prop({
+    type: {
+      average: { type: Number, default: 0 },
+      count: { type: Number, default: 0 },
+    },
+    default: { average: 0, count: 0 },
+  })
+  ratingSummary: {
+    average: number;
+    count: number;
+  };
 }
 
 export const SortieSchema = SchemaFactory.createForClass(Sortie);

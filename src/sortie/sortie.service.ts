@@ -174,6 +174,16 @@ async create(
     return sortie;
   }
 
+  async findByCreator(creatorId: string): Promise<SortieDocument[]> {
+    if (!Types.ObjectId.isValid(creatorId)) {
+      throw new BadRequestException('Invalid creator ID');
+    }
+
+    return this.sortieModel
+      .find({ createurId: new Types.ObjectId(creatorId) })
+      .exec();
+  }
+
   async update(
     id: string,
     updateSortieDto: UpdateSortieDto,
@@ -291,6 +301,23 @@ async setPhoto(id: string, file: Express.Multer.File, userId: string): Promise<S
     return updated;
   }
 
+  /**
+   * Update rating summary for a sortie (used by RatingService)
+   */
+  async updateRatingSummary(
+    sortieId: string,
+    summary: { average: number; count: number },
+  ): Promise<void> {
+    const updated = await this.sortieModel
+      .findByIdAndUpdate(
+        sortieId,
+        { ratingSummary: summary },
+        { new: true },
+      )
+      .exec();
 
-
+    if (!updated) {
+      throw new NotFoundException('Sortie not found');
+    }
+  }
 }
