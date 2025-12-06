@@ -80,6 +80,60 @@ export class PollService {
   }
 
   /**
+   * Create a new poll for a sortie (using sortieId instead of chatId)
+   * @param sortieId - The ID of the sortie
+   * @param creatorId - The ID of the user creating the poll
+   * @param createPollDto - Poll creation data
+   * @returns The created poll
+   */
+  async createPollForSortie(
+    sortieId: string | Types.ObjectId,
+    creatorId: string | Types.ObjectId,
+    createPollDto: CreatePollDto,
+  ): Promise<PollResponseDto> {
+    try {
+      const sortieObjectId = new Types.ObjectId(sortieId);
+      const creatorObjectId = new Types.ObjectId(creatorId);
+
+      // Get the chat associated with this sortie
+      const chat = await this.chatService.getChatBySortie(sortieObjectId);
+      
+      // Verify user is a member
+      const isMember = chat.members.some((member) => member.equals(creatorObjectId));
+      if (!isMember) {
+        throw new ForbiddenException('You must be a chat member to create polls');
+      }
+
+      // Generate unique option IDs and format options
+      const options = createPollDto.options.map((text, index) => ({
+        optionId: `opt_${Date.now()}_${index}`,
+        text,
+        votes: 0,
+      }));
+
+      // Create poll document with the chat's _id
+      const poll = new this.pollModel({
+        chatId: chat._id,
+        creatorId: creatorObjectId,
+        question: createPollDto.question,
+        options,
+        allowMultiple: createPollDto.allowMultiple ?? false,
+        closesAt: createPollDto.closesAt ? new Date(createPollDto.closesAt) : null,
+        votes: [],
+        closed: false,
+      });
+
+      const savedPoll = await poll.save();
+      this.logger.log(`Poll created: ${savedPoll._id} by user ${creatorId} for sortie ${sortieId} (chat ${chat._id})`);
+
+      return this.formatPollResponse(savedPoll, creatorObjectId);
+    } catch (error) {
+      this.logger.error(`Error creating poll for sortie: ${error.message}`);
+      throw error;
+    }
+  }
+
+  /**
    * Vote on a poll
    * @param pollId - The ID of the poll
    * @param userId - The ID of the user voting
@@ -261,6 +315,58 @@ export class PollService {
   }
 
   /**
+   * Get polls for a sortie with pagination
+   * @param sortieId - The ID of the sortie
+   * @param userId - The ID of the user requesting
+   * @param page - Page number (default: 1)
+   * @param limit - Items per page (default: 10)
+   * @returns Paginated polls
+   */
+  async getSortiePolls(
+    sortieId: string | Types.ObjectId,
+    userId: string | Types.ObjectId,
+    page = 1,
+    limit = 10,
+  ): Promise<PaginatedPollsResponseDto> {
+    try {
+      const sortieObjectId = new Types.ObjectId(sortieId);
+      const userObjectId = new Types.ObjectId(userId);
+
+      // Get chat associated with this sortie and verify membership
+      const chat = await this.chatService.getChatBySortie(sortieObjectId);
+      const isMember = chat.members.some((member) => member.equals(userObjectId));
+      if (!isMember) {
+        throw new ForbiddenException('You must be a sortie participant to view polls');
+      }
+
+      const skip = (page - 1) * limit;
+
+      const [polls, total] = await Promise.all([
+        this.pollModel
+          .find({ chatId: chat._id })
+          .sort({ createdAt: -1 })
+          .skip(skip)
+          .limit(limit)
+          .exec(),
+        this.pollModel.countDocuments({ chatId: chat._id }),
+      ]);
+
+      const pollResponses = polls.map((poll) => this.formatPollResponse(poll, userObjectId));
+
+      return {
+        polls: pollResponses,
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      };
+    } catch (error) {
+      this.logger.error(`Error fetching polls for sortie ${sortieId}: ${error.message}`);
+      throw error;
+    }
+  }
+
+  /**
    * Get a single poll by ID
    * @param pollId - The ID of the poll
    * @param userId - The ID of the user requesting
@@ -324,5 +430,21 @@ export class PollService {
       createdAt: poll.createdAt,
       updatedAt: poll.updatedAt,
     };
+  }
+
+  /**
+   * Get sortieId from a chat's ID
+   * Helper method for broadcasting to correct WebSocket room
+   * @param chatId - The chat's MongoDB ObjectId
+   * @returns The sortieId as a string
+   */
+  async getSortieIdFromChatId(chatId: Types.ObjectId): Promise<string> {
+    try {
+      const chat = await this.chatService.getChatById(chatId);
+      return String(chat.sortieId);
+    } catch (error) {
+      this.logger.error(`Error getting sortieId for chat ${chatId}: ${error.message}`);
+      throw error;
+    }
   }
 }

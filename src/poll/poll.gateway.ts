@@ -10,6 +10,8 @@ import { Logger, UseGuards, UnauthorizedException } from '@nestjs/common';
 import { PollService } from './poll.service';
 import { CreatePollDto } from './dto/create-poll.dto';
 import { VoteDto } from './dto/vote.dto';
+import { ChatService } from '../chat/chat.service';
+import { Types } from 'mongoose';
 
 /**
  * PollGateway
@@ -29,16 +31,19 @@ export class PollGateway {
 
   private readonly logger = new Logger(PollGateway.name);
 
-  constructor(private readonly pollService: PollService) {}
+  constructor(
+    private readonly pollService: PollService,
+    private readonly chatService: ChatService,
+  ) {}
 
   /**
    * Create a poll and broadcast to room
-   * Client sends: { chatId: string, poll: CreatePollDto }
+   * Client sends: { sortieId: string, poll: CreatePollDto }
    */
   @SubscribeMessage('poll.create')
   async handleCreatePoll(
     @ConnectedSocket() client: Socket,
-    @MessageBody() payload: { chatId: string; poll: CreatePollDto },
+    @MessageBody() payload: { sortieId: string; poll: CreatePollDto },
   ) {
     try {
       const userId = client.data.userId;
@@ -46,22 +51,71 @@ export class PollGateway {
         throw new UnauthorizedException('User not authenticated');
       }
 
-      const { chatId, poll: createPollDto } = payload;
+      const { sortieId, poll: createPollDto } = payload;
 
-      // Create poll via service
-      const poll = await this.pollService.createPoll(chatId, userId, createPollDto);
+      // Create poll via service using sortieId
+      const poll = await this.pollService.createPollForSortie(sortieId, userId, createPollDto);
 
-      this.logger.log(`Poll created via WebSocket: ${poll._id} by user ${userId}`);
+      this.logger.log(`Poll created via WebSocket: ${poll._id} by user ${userId} for sortie ${sortieId}`);
 
-      // Broadcast to all members in the chat room
-      // Assuming chat rooms use format: chat_<chatId> or sortie_<sortieId>
-      // You may need to adjust based on your ChatGateway room naming
-      const roomName = `chat_${chatId}`;
-      
-      this.server.to(roomName).emit('poll.created', {
-        poll,
-        message: 'New poll created',
+      // Create a chat message for the poll
+      const sortieObjectId = new Types.ObjectId(sortieId);
+      const userObjectId = new Types.ObjectId(userId);
+      const chatIdObjectId = new Types.ObjectId(poll.chatId);
+      const pollIdObjectId = new Types.ObjectId(poll._id);
+
+      const pollMessage = await this.chatService.createPollMessage(
+        chatIdObjectId,
+        sortieObjectId,
+        userObjectId,
+        pollIdObjectId,
+      );
+
+      // Format the message for iOS client
+      // Ensure poll object matches PollResponseDto structure exactly
+      const formattedMessage = {
+        _id: String(pollMessage._id),
+        sortieId: sortieId,
+        chatId: poll.chatId,
+        type: 'poll',
+        poll: {
+          _id: poll._id,
+          chatId: poll.chatId,
+          creatorId: poll.creatorId,
+          question: poll.question,
+          options: poll.options.map(opt => ({
+            optionId: opt.optionId,
+            text: opt.text,
+            votes: opt.votes,
+          })),
+          allowMultiple: poll.allowMultiple,
+          closesAt: poll.closesAt,
+          closed: poll.closed,
+          userVotedOptionIds: poll.userVotedOptionIds,
+          totalVotes: poll.totalVotes,
+          createdAt: poll.createdAt,
+          updatedAt: poll.updatedAt,
+        },
+        senderId: String(pollMessage.senderId._id),
+        sender: {
+          _id: String(pollMessage.senderId._id),
+          firstName: pollMessage.senderId.firstName,
+          lastName: pollMessage.senderId.lastName,
+          email: pollMessage.senderId.email,
+          avatar: pollMessage.senderId.avatar,
+        },
+        createdAt: pollMessage.createdAt,
+        updatedAt: pollMessage.updatedAt,
+      };
+
+      // Broadcast to all members in the sortie room via receiveMessage
+      const roomName = `sortie_${sortieId}`;
+      this.server.to(roomName).emit('receiveMessage', {
+        message: formattedMessage,
+        sortieId,
       });
+
+      this.logger.log(`Poll message broadcast to room ${roomName}`);
 
       // Send confirmation to creator
       client.emit('poll.createSuccess', {
@@ -101,8 +155,9 @@ export class PollGateway {
 
       this.logger.log(`Vote submitted via WebSocket: poll ${pollId} by user ${userId}`);
 
-      // Broadcast updated poll to all members in the chat room
-      const roomName = `chat_${poll.chatId}`;
+      // Get sortieId from the poll's chatId to broadcast to correct room
+      const sortieId = await this.pollService.getSortieIdFromChatId(poll.chatId as any);
+      const roomName = `sortie_${sortieId}`;
       
       this.server.to(roomName).emit('poll.voted', {
         poll,
@@ -149,8 +204,9 @@ export class PollGateway {
 
       this.logger.log(`Poll closed via WebSocket: ${pollId} by user ${userId}`);
 
-      // Broadcast to all members in the chat room
-      const roomName = `chat_${poll.chatId}`;
+      // Get sortieId from the poll's chatId to broadcast to correct room
+      const sortieId = await this.pollService.getSortieIdFromChatId(poll.chatId as any);
+      const roomName = `sortie_${sortieId}`;
       
       this.server.to(roomName).emit('poll.closed', {
         poll,
@@ -177,16 +233,16 @@ export class PollGateway {
    * Helper method to broadcast poll events from REST controller
    * Can be called from PollService after REST operations
    */
-  broadcastPollCreated(chatId: string, poll: any) {
-    const roomName = `chat_${chatId}`;
+  async broadcastPollCreated(sortieId: string, poll: any) {
+    const roomName = `sortie_${sortieId}`;
     this.server.to(roomName).emit('poll.created', {
       poll,
       message: 'New poll created',
     });
   }
 
-  broadcastPollVoted(chatId: string, poll: any, userId: string, optionIds: string[]) {
-    const roomName = `chat_${chatId}`;
+  async broadcastPollVoted(sortieId: string, poll: any, userId: string, optionIds: string[]) {
+    const roomName = `sortie_${sortieId}`;
     this.server.to(roomName).emit('poll.voted', {
       poll,
       userId,
@@ -195,8 +251,8 @@ export class PollGateway {
     });
   }
 
-  broadcastPollClosed(chatId: string, poll: any) {
-    const roomName = `chat_${chatId}`;
+  async broadcastPollClosed(sortieId: string, poll: any) {
+    const roomName = `sortie_${sortieId}`;
     this.server.to(roomName).emit('poll.closed', {
       poll,
       message: 'Poll has been closed',

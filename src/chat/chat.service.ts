@@ -349,6 +349,51 @@ export class ChatService {
   }
 
   /**
+   * Create a poll message
+   * Used when a poll is created - creates a message that references the poll
+   * @param chatId - The ID of the chat
+   * @param sortieId - The ID of the sortie
+   * @param senderId - The ID of the user who created the poll
+   * @param pollId - The ID of the poll
+   * @returns The populated message document with sender and poll data
+   */
+  async createPollMessage(
+    chatId: Types.ObjectId,
+    sortieId: Types.ObjectId,
+    senderId: Types.ObjectId,
+    pollId: Types.ObjectId,
+  ): Promise<any> {
+    try {
+      const message = new this.messageModel({
+        chatId,
+        sortieId,
+        senderId,
+        type: MessageType.POLL,
+        pollId,
+      });
+
+      const savedMessage = await message.save();
+
+      // Update last message in chat
+      await this.updateLastMessage(chatId, savedMessage._id as Types.ObjectId);
+
+      // Populate sender and poll data for the response
+      const populatedMessage = await this.messageModel
+        .findById(savedMessage._id)
+        .populate('senderId', 'firstName lastName email avatar')
+        .populate('pollId')
+        .exec();
+
+      this.logger.log(`Poll message created: ${savedMessage._id} for poll ${pollId}`);
+
+      return populatedMessage;
+    } catch (error) {
+      this.logger.error(`Error creating poll message: ${error.message}`);
+      throw error;
+    }
+  }
+
+  /**
    * Delete a chat (when sortie is deleted)
    * @param sortieId - The ID of the sortie
    */

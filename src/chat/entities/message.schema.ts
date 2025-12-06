@@ -15,6 +15,7 @@ export enum MessageType {
   FILE = 'file',
   LOCATION = 'location',
   SYSTEM = 'system', // For system messages like "User joined the chat"
+  POLL = 'poll', // For poll messages
 }
 
 /**
@@ -160,6 +161,16 @@ export class Message {
     required: false,
   })
   replyTo?: Types.ObjectId;
+
+  /**
+   * Reference to a poll (for poll type messages)
+   */
+  @Prop({
+    type: Types.ObjectId,
+    ref: 'Poll',
+    required: false,
+  })
+  pollId?: Types.ObjectId;
 }
 
 export const MessageSchema = SchemaFactory.createForClass(Message);

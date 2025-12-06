@@ -56,6 +56,36 @@ export class PollController {
   }
 
   /**
+   * Create a new poll for a sortie (using sortieId)
+   */
+  @Post('sortie/:sortieId')
+  @ApiOperation({
+    summary: 'Create a new poll for a sortie',
+    description: 'Creates a poll for a sortie using sortieId. Only sortie participants can create polls.',
+  })
+  @ApiResponse({
+    status: HttpStatus.CREATED,
+    description: 'Poll created successfully',
+    type: PollResponseDto,
+  })
+  @ApiResponse({
+    status: HttpStatus.FORBIDDEN,
+    description: 'User is not a member of the sortie',
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'Chat not found for this sortie',
+  })
+  async createPollForSortie(
+    @Param('sortieId') sortieId: string,
+    @Request() req,
+    @Body() createPollDto: CreatePollDto,
+  ): Promise<PollResponseDto> {
+    const userId = req.user.sub;
+    return this.pollService.createPollForSortie(sortieId, userId, createPollDto);
+  }
+
+  /**
    * Vote on a poll
    */
   @Post(':pollId/vote')
@@ -149,6 +179,44 @@ export class PollController {
     const userId = req.user.sub;
     return this.pollService.getChatPolls(
       chatId,
+      userId,
+      page ? Number(page) : 1,
+      limit ? Number(limit) : 10,
+    );
+  }
+
+  /**
+   * Get all polls for a sortie
+   */
+  @Get('sortie/:sortieId')
+  @ApiOperation({
+    summary: 'Get all polls for a sortie',
+    description: 'Retrieve paginated list of polls for a sortie. Only sortie participants can view polls.',
+  })
+  @ApiQuery({ name: 'page', required: false, type: Number, example: 1 })
+  @ApiQuery({ name: 'limit', required: false, type: Number, example: 10 })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Polls retrieved successfully',
+    type: PaginatedPollsResponseDto,
+  })
+  @ApiResponse({
+    status: HttpStatus.FORBIDDEN,
+    description: 'User is not a sortie participant',
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'Chat not found for this sortie',
+  })
+  async getSortiePolls(
+    @Param('sortieId') sortieId: string,
+    @Request() req,
+    @Query('page') page?: number,
+    @Query('limit') limit?: number,
+  ): Promise<PaginatedPollsResponseDto> {
+    const userId = req.user.sub;
+    return this.pollService.getSortiePolls(
+      sortieId,
       userId,
       page ? Number(page) : 1,
       limit ? Number(limit) : 10,
