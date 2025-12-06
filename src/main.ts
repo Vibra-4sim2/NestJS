@@ -23,9 +23,10 @@ async function bootstrap() {
   //await app.listen(process.env.PORT ?? 3000);
 
   // ✅ CORRECTION (écoute sur TOUTES les interfaces)
-await app.listen(process.env.PORT ?? 3000, '0.0.0.0');
-  console.log(`🚀 Server is running on: http://localhost:3000`);
-  console.log(`📘 Swagger is available at: http://localhost:3000/api`);
+  const port = Number(process.env.PORT) || 3000;
+  await app.listen(port, '0.0.0.0');
+  console.log(`🚀 Server is running on: http://localhost:${port}`);
+  console.log(`📘 Swagger is available at: http://localhost:${port}/api`);
 
 
   app.enableCors({
