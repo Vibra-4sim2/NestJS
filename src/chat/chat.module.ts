@@ -9,6 +9,8 @@ import { MessageService } from './message.service';
 import { ChatController } from './chat.controller';
 import { MessageController } from './message.controller';
 import { ChatGateway } from './chat.gateway';
+import { NotificationsModule } from '../notifications/notifications.module';
+import { Sortie, SortieSchema } from '../sortie/entities/sortie.schema';
 
 /**
  * ChatModule
@@ -20,7 +22,9 @@ import { ChatGateway } from './chat.gateway';
     MongooseModule.forFeature([
       { name: Chat.name, schema: ChatSchema },
       { name: Message.name, schema: MessageSchema },
+      { name: Sortie.name, schema: SortieSchema },
     ]),
+    NotificationsModule,
 
     // JWT module for WebSocket authentication
     JwtModule.registerAsync({

@@ -6,13 +6,17 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import cloudinary from 'src/config/cloudinary.config';
 import * as streamifier from 'streamifier';
+import { NotificationsService } from '../notifications/notifications.service';
+import { FollowersService } from '../followers/followers.service';
 
 
 @Injectable()
 export class PublicationService {
   constructor(
     @InjectModel(Publication.name) private publicationModel: Model<PublicationDocument>,
-     @InjectModel('User') private userModel: Model<any> // Ajouter injection User
+    @InjectModel('User') private userModel: Model<any>, // Ajouter injection User
+    private notificationsService: NotificationsService,
+    private followersService: FollowersService,
   ) {}
 
   // async create(createPublicationDto: CreatePublicationDto): Promise<Publication> {
@@ -77,7 +81,39 @@ async create(dto: CreatePublicationDto, file?: Express.Multer.File) {
     isActive: true,
   });
 
-  return newPub.save();
+  const savedPublication = await newPub.save();
+
+  // 🔔 Send notifications to followers
+  try {
+    // Get author's followers
+    const followersResponse = await this.followersService.getFollowers(dto.author);
+    const followers = followersResponse.followers;
+    
+    if (followers && followers.length > 0) {
+      const followerIds = followers.map(follower => String(follower));
+      
+      // Prepare notification payload
+      const notificationPayload = {
+        title: `${authorExists.firstName} ${authorExists.lastName} a publié`,
+        body: dto.content?.substring(0, 100) || 'Nouvelle publication',
+        data: {
+          type: 'new_publication',
+          publicationId: String(savedPublication._id),
+          authorId: dto.author,
+          authorName: `${authorExists.firstName} ${authorExists.lastName}`,
+        },
+        imageUrl: image,
+      };
+
+      // Send notifications to all followers
+      await this.notificationsService.notifyUsers(followerIds, notificationPayload);
+    }
+  } catch (error) {
+    // Log error but don't fail the publication creation
+    console.error('Error sending publication notifications:', error);
+  }
+
+  return savedPublication;
 }
 
   

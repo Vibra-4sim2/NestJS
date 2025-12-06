@@ -13,6 +13,7 @@ import { CreateMessageDto } from './dto/message.dto';
 import { GetMessagesDto } from './dto/query.dto';
 import { v2 as cloudinary } from 'cloudinary';
 import * as streamifier from 'streamifier';
+import { NotificationsService } from '../notifications/notifications.service';
 
 /**
  * MessageService
@@ -24,7 +25,9 @@ export class MessageService {
 
   constructor(
     @InjectModel(Message.name) private messageModel: Model<MessageDocument>,
+    @InjectModel('Sortie') private sortieModel: Model<any>,
     private chatService: ChatService,
+    private notificationsService: NotificationsService,
   ) {}
 
   /**
@@ -83,6 +86,71 @@ export class MessageService {
       await this.chatService.updateLastMessage(chat._id as Types.ObjectId, savedMessage._id as Types.ObjectId);
 
       this.logger.log(`Message sent in chat for sortie ${sortieId} by user ${senderId}`);
+
+      // 🔔 Send notifications to all chat members except the sender
+      try {
+        // Get sortie information for notification
+        const sortie = await this.sortieModel.findById(sortieObjectId);
+        const chatName = sortie?.titre || 'Chat';
+        
+        // Get all chat members except the sender
+        const recipientIds = chat.members
+          .filter(memberId => !memberId.equals(senderObjectId))
+          .map(memberId => String(memberId));
+
+        if (recipientIds.length > 0) {
+          const sender = savedMessage.senderId as any;
+          const senderName = `${sender.firstName} ${sender.lastName}`;
+
+          // Prepare notification based on message type
+          let notificationBody = '';
+          switch (dto.type) {
+            case MessageType.TEXT:
+              notificationBody = dto.content || 'Nouveau message';
+              break;
+            case MessageType.IMAGE:
+              notificationBody = '📷 Photo';
+              break;
+            case MessageType.VIDEO:
+              notificationBody = '🎥 Vidéo';
+              break;
+            case MessageType.AUDIO:
+              notificationBody = '🎵 Audio';
+              break;
+            case MessageType.FILE:
+              notificationBody = `📎 ${dto.fileName || 'Fichier'}`;
+              break;
+            case MessageType.LOCATION:
+              notificationBody = '📍 Position';
+              break;
+            case MessageType.POLL:
+              notificationBody = '📊 Sondage';
+              break;
+            default:
+              notificationBody = 'Nouveau message';
+          }
+
+          const notificationPayload = {
+            title: `${senderName} • ${chatName}`,
+            body: notificationBody,
+            data: {
+              type: 'chat_message',
+              messageId: String(savedMessage._id),
+              chatId: String(chat._id),
+              sortieId: String(sortieId),
+              senderId: String(senderId),
+              senderName,
+              chatName,
+            },
+          };
+
+          await this.notificationsService.notifyUsers(recipientIds, notificationPayload);
+          this.logger.log(`Notifications sent to ${recipientIds.length} chat members`);
+        }
+      } catch (error) {
+        // Log error but don't fail the message sending
+        this.logger.error(`Error sending chat notifications: ${error.message}`);
+      }
 
       return savedMessage;
     } catch (error) {
