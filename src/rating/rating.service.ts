@@ -13,6 +13,8 @@ import { SortieService } from '../sortie/sortie.service';
 import { UserService } from '../user/user.service';
 import { Participation } from '../participation/entities/participation.schema';
 import { ParticipationStatus } from '../enums/participation-status.enum';
+import { Sortie } from '../sortie/entities/sortie.schema';
+import { Camping } from '../camping/camping.schema';
 
 @Injectable()
 export class RatingService {
@@ -107,6 +109,124 @@ export class RatingService {
     }
 
     return rating;
+  }
+
+  /**
+   * Compute eligible sorties for rating for a user.
+   * Rule: next day after sortie.date (non-camping) or next day after camping.dateFin when camping is enabled.
+   */
+  async getEligibleToRate(userId: string): Promise<
+    Array<{
+      sortieId: string;
+      title: string;
+      camping: boolean;
+      eligibleDate: Date;
+    }>
+  > {
+    if (!userId || !Types.ObjectId.isValid(userId)) return [];
+
+    const userIdObj = new Types.ObjectId(userId);
+
+    // Find participations for user and populate sortie with camping ref
+    const participations = await this.participationModel
+      .find({ userId: userIdObj })
+      .populate({
+        path: 'sortieId',
+        populate: { path: 'camping', model: 'Camping' },
+      })
+      .lean();
+
+    const now = new Date();
+    const result: Array<{
+      sortieId: string;
+      title: string;
+      camping: boolean;
+      eligibleDate: Date;
+    }> = [];
+
+    for (const p of participations) {
+      const s = p.sortieId as unknown as Sortie & { camping?: Camping | null } & any;
+      if (!s) continue;
+
+      // Only accepted participants are considered eligible to rate
+      if (p.status !== ParticipationStatus.ACCEPTEE) continue;
+
+      const isCampingEnabled = Boolean(s.option_camping);
+      const baseDate = isCampingEnabled
+        ? new Date(
+            (s.camping && (s.camping as any).dateFin) ? (s.camping as any).dateFin : s.date,
+          )
+        : new Date(s.date);
+      if (isNaN(baseDate.getTime())) continue;
+
+      const eligibilityDate = new Date(baseDate);
+      eligibilityDate.setDate(eligibilityDate.getDate() + 1);
+
+      const already = await this.ratingModel.exists({
+        userId: userIdObj,
+        sortieId: new Types.ObjectId(String((s as any)._id)),
+      });
+      if (already) continue;
+
+      if (now >= eligibilityDate) {
+        result.push({
+          sortieId: String((s as any)._id),
+          title: (s as any).titre ?? (s as any).name ?? 'Sortie',
+          camping: isCampingEnabled,
+          eligibleDate: eligibilityDate,
+        });
+      }
+    }
+
+    return result;
+  }
+
+  /**
+   * Assert a sortie is eligible for the user to rate now; throws if not.
+   */
+  async assertSortieIsEligibleForUser(userId: string, sortieId: string): Promise<void> {
+    if (!Types.ObjectId.isValid(userId) || !Types.ObjectId.isValid(sortieId)) {
+      throw new BadRequestException('Invalid IDs');
+    }
+
+    const userIdObj = new Types.ObjectId(userId);
+    const sortieIdObj = new Types.ObjectId(sortieId);
+
+    // Must be an accepted participant
+    const participation = await this.participationModel.findOne({
+      userId: userIdObj,
+      sortieId: sortieIdObj,
+    });
+    if (!participation || participation.status !== ParticipationStatus.ACCEPTEE) {
+      throw new ForbiddenException('Only accepted participants can rate this sortie');
+    }
+
+    // Exclude duplicates
+    const already = await this.ratingModel.exists({ userId: userIdObj, sortieId: sortieIdObj });
+    if (already) {
+      throw new ConflictException('You have already rated this sortie');
+    }
+
+    // Load sortie and camping
+    const sortie = await this.sortieService.findOne(sortieId);
+    if (!sortie) throw new NotFoundException('Sortie not found');
+
+    const isCampingEnabled = Boolean((sortie as any).option_camping);
+    const baseDate = isCampingEnabled
+      ? new Date(
+          (sortie as any).camping && (sortie as any).camping.dateFin
+            ? (sortie as any).camping.dateFin
+            : (sortie as any).date,
+        )
+      : new Date((sortie as any).date);
+    if (isNaN(baseDate.getTime())) throw new BadRequestException('Invalid sortie date');
+
+    const eligibilityDate = new Date(baseDate);
+    eligibilityDate.setDate(eligibilityDate.getDate() + 1);
+
+    if (new Date() < eligibilityDate) {
+      throw new ForbiddenException('Rating not yet eligible for this sortie');
+    }
   }
 
   /**

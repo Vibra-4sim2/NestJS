@@ -71,6 +71,8 @@ export class RatingController {
     @Request() req,
   ): Promise<RatingResponseDto> {
     const userId = req.user.userId || req.user.sub;
+    // Optional: enforce eligibility before allowing rating
+    await this.ratingService.assertSortieIsEligibleForUser(userId, sortieId);
     const rating = await this.ratingService.rateSortie(
       userId,
       sortieId,
@@ -86,6 +88,18 @@ export class RatingController {
       createdAt: rating.createdAt,
       updatedAt: rating.updatedAt,
     };
+  }
+
+  @Get('eligible')
+  @ApiOperation({
+    summary: 'List sorties eligible for rating',
+    description:
+      'Returns sorties the current user can rate now, based on date rules and excluding already-rated.',
+  })
+  @ApiResponse({ status: 200, description: 'Eligible sorties retrieved' })
+  async getEligibleToRate(@Request() req) {
+    const userId = req.user.userId || req.user.sub;
+    return this.ratingService.getEligibleToRate(userId);
   }
 
   @Delete('sortie/:sortieId')
