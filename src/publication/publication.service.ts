@@ -83,15 +83,32 @@ async create(dto: CreatePublicationDto, file?: Express.Multer.File) {
 
   const savedPublication = await newPub.save();
 
-  // 🔔 Send notifications to followers
+  // 🔔 Send notifications to followers + author (for testing)
   try {
+    console.log('📢 Starting notification process for publication...');
+    console.log('👤 Author ID:', dto.author);
+    
     // Get author's followers
     const followersResponse = await this.followersService.getFollowers(dto.author);
-    const followers = followersResponse.followers;
+    console.log('📊 Followers response:', JSON.stringify(followersResponse, null, 2));
     
-    if (followers && followers.length > 0) {
-      const followerIds = followers.map(follower => String(follower));
-      
+    const followers = followersResponse.followers;
+    console.log(`👥 Found ${followers?.length || 0} followers`);
+    
+    // Extract follower IDs - handle both populated and non-populated cases
+    const followerIds = followers && followers.length > 0 
+      ? followers.map(follower => {
+          return typeof follower === 'object' && follower._id 
+            ? String(follower._id) 
+            : String(follower);
+        })
+      : [];
+    
+    // ⭐ AJOUTER LE CRÉATEUR LUI-MÊME POUR VÉRIFICATION
+    const userIdsToNotify = [...followerIds, dto.author];
+    console.log('📬 User IDs to notify (including author):', userIdsToNotify);
+    
+    if (userIdsToNotify.length > 0) {
       // Prepare notification payload
       const notificationPayload = {
         title: `${authorExists.firstName} ${authorExists.lastName} a publié`,
@@ -105,12 +122,16 @@ async create(dto: CreatePublicationDto, file?: Express.Multer.File) {
         imageUrl: image,
       };
 
-      // Send notifications to all followers
-      await this.notificationsService.notifyUsers(followerIds, notificationPayload);
+      console.log('📤 Sending notifications to', userIdsToNotify.length, 'users...');
+      // Send notifications to all followers + author
+      await this.notificationsService.notifyUsers(userIdsToNotify, notificationPayload);
+      console.log('✅ Notifications sent successfully!');
+    } else {
+      console.log('ℹ️ No users to notify');
     }
   } catch (error) {
     // Log error but don't fail the publication creation
-    console.error('Error sending publication notifications:', error);
+    console.error('❌ Error sending publication notifications:', error);
   }
 
   return savedPublication;

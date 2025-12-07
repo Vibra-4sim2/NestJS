@@ -163,16 +163,27 @@ export class NotificationsService {
     payload: NotificationPayload,
   ): Promise<{ successCount: number; failureCount: number }> {
     try {
+      this.logger.log(`🔍 Recherche de tokens pour les utilisateurs: ${JSON.stringify(userIds)}`);
       const tokens = await this.getUsersTokens(userIds);
+      this.logger.log(`🎫 Tokens trouvés: ${tokens.length} token(s)`);
 
       if (tokens.length === 0) {
-        this.logger.warn(
-          `Aucun token FCM trouvé pour les utilisateurs spécifiés`,
-        );
+        // Vérifier en base de données pour debug
+        const objectIds = userIds.map((id) => new Types.ObjectId(id));
+        const allTokensInDb = await this.fcmTokenModel.find({
+          userId: { $in: objectIds }
+        });
+        this.logger.warn(`⚠️ Aucun token FCM actif trouvé. Tokens en DB (actifs ou non): ${allTokensInDb.length}`);
+        if (allTokensInDb.length > 0) {
+          this.logger.warn(`📋 Tokens en DB: ${JSON.stringify(allTokensInDb.map(t => ({ userId: t.userId, isActive: t.isActive })))}`);
+        }
         return { successCount: 0, failureCount: 0 };
       }
 
-      return await this.firebaseService.sendToTokens(tokens, payload);
+      this.logger.log(`📤 Envoi de ${tokens.length} notification(s)...`);
+      const result = await this.firebaseService.sendToTokens(tokens, payload);
+      this.logger.log(`✅ Résultat: ${result.successCount} succès, ${result.failureCount} échecs`);
+      return result;
     } catch (error) {
       this.logger.error(
         'Erreur lors de l\'envoi de notifications à plusieurs utilisateurs',
