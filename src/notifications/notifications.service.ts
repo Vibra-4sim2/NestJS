@@ -111,13 +111,25 @@ export class NotificationsService {
    */
   async getUsersTokens(userIds: string[]): Promise<string[]> {
     try {
-      const objectIds = userIds.map((id) => new Types.ObjectId(id));
+      // Normalize and validate IDs before casting to ObjectId
+      const validIds = (userIds || [])
+        .map((id) => String(id).trim())
+        .filter((id) => Types.ObjectId.isValid(id));
+      if (validIds.length === 0) {
+        this.logger.warn(
+          `Aucun ID valide fourni pour la récupération des tokens. IDs reçus: ${JSON.stringify(userIds)}`,
+        );
+        return [];
+      }
+      const objectIds = validIds.map((id) => new Types.ObjectId(id));
       const tokens = await this.fcmTokenModel.find({
         userId: { $in: objectIds },
         isActive: true,
       });
 
-      return tokens.map((t) => t.token);
+      // Deduplicate and filter empty
+      const unique = Array.from(new Set(tokens.map((t) => t.token))).filter(Boolean);
+      return unique;
     } catch (error) {
       this.logger.error(
         'Erreur lors de la récupération des tokens pour plusieurs utilisateurs',
@@ -163,19 +175,24 @@ export class NotificationsService {
     payload: NotificationPayload,
   ): Promise<{ successCount: number; failureCount: number }> {
     try {
-      this.logger.log(`🔍 Recherche de tokens pour les utilisateurs: ${JSON.stringify(userIds)}`);
-      const tokens = await this.getUsersTokens(userIds);
-      this.logger.log(`🎫 Tokens trouvés: ${tokens.length} token(s)`);
+      // Log clean arrays of IDs
+      const cleanIds = (userIds || []).map((id) => String(id).trim());
+      this.logger.log(`🔍 Recherche de tokens pour les utilisateurs: ${JSON.stringify(cleanIds)}`);
+      const tokens = await this.getUsersTokens(cleanIds);
+      this.logger.log(`🎫 Tokens actifs trouvés: ${tokens.length} token(s)`);
 
       if (tokens.length === 0) {
-        // Vérifier en base de données pour debug
-        const objectIds = userIds.map((id) => new Types.ObjectId(id));
+        // Vérifier en base de données pour debug (actifs ou non)
+        const validIds = cleanIds.filter((id) => Types.ObjectId.isValid(id));
+        const objectIds = validIds.map((id) => new Types.ObjectId(id));
         const allTokensInDb = await this.fcmTokenModel.find({
           userId: { $in: objectIds }
         });
         this.logger.warn(`⚠️ Aucun token FCM actif trouvé. Tokens en DB (actifs ou non): ${allTokensInDb.length}`);
         if (allTokensInDb.length > 0) {
-          this.logger.warn(`📋 Tokens en DB: ${JSON.stringify(allTokensInDb.map(t => ({ userId: t.userId, isActive: t.isActive })))}`);
+          this.logger.warn(
+            `📋 Tokens en DB: ${JSON.stringify(allTokensInDb.map(t => ({ userId: String(t.userId), isActive: t.isActive })))}`
+          );
         }
         return { successCount: 0, failureCount: 0 };
       }
