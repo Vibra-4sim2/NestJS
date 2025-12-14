@@ -111,6 +111,17 @@ export class FirebaseService {
 
       const response = await this.firebaseAdmin.messaging().sendEachForMulticast(message);
       
+      // Log detailed errors for debugging
+      if (response.failureCount > 0) {
+        response.responses.forEach((resp, idx) => {
+          if (!resp.success) {
+            this.logger.error(
+              `Failed to send to token ${tokens[idx].substring(0, 20)}...: ${resp.error?.code} - ${resp.error?.message}`,
+            );
+          }
+        });
+      }
+      
       this.logger.log(
         `Notifications envoyées: ${response.successCount} succès, ${response.failureCount} échecs`,
       );

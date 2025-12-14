@@ -5,6 +5,7 @@ import {
   NotFoundException,
   Inject,
   forwardRef,
+  Logger,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
@@ -16,18 +17,23 @@ import { CreateCampingDto } from '../camping/camping.dto';
 import { ChatService } from '../chat/chat.service';
 import { Participation } from '../participation/entities/participation.schema';
 import { ParticipationStatus } from '../enums/participation-status.enum';
+import { NotificationsService } from '../notifications/notifications.service';
 import cloudinary from 'src/config/cloudinary.config';
 import * as streamifier from 'streamifier';
 
 
 @Injectable()
 export class SortieService {
+  private readonly logger = new Logger(SortieService.name);
+
   constructor(
     @InjectModel(Sortie.name) private sortieModel: Model<SortieDocument>,
     @InjectModel(Participation.name) private participationModel: Model<Participation>,
+    @InjectModel('User') private userModel: Model<any>,
     private campingService: CampingService,
     @Inject(forwardRef(() => ChatService))
     private chatService: ChatService,
+    private notificationsService: NotificationsService,
   ) {}
 
 
@@ -141,6 +147,32 @@ async create(
     } catch (error) {
       // Log error but don't fail sortie creation
       console.error('Failed to create automatic participation for creator:', error.message);
+    }
+
+    // 🔔 SEND NOTIFICATIONS TO FOLLOWERS
+    try {
+      const creator = await this.userModel.findById(savedSortie.createurId).exec();
+      if (creator && creator.followers && creator.followers.length > 0) {
+        const followerIds = creator.followers.map((id: any) => String(id));
+        
+        const notificationPayload = {
+          title: `${creator.firstName} ${creator.lastName} a créé une sortie`,
+          body: savedSortie.titre || 'Nouvelle sortie disponible',
+          data: {
+            type: 'new_sortie',
+            sortieId: String(savedSortie._id),
+            sortieType: savedSortie.type,
+            creatorId: String(savedSortie.createurId),
+            creatorName: `${creator.firstName} ${creator.lastName}`,
+          },
+        };
+
+        this.logger.log(`📤 Envoi de notifications de sortie à ${followerIds.length} followers`);
+        await this.notificationsService.notifyUsers(followerIds, notificationPayload);
+        this.logger.log('✅ Notifications de sortie envoyées avec succès');
+      }
+    } catch (error) {
+      this.logger.error('❌ Erreur lors de l\'envoi des notifications de sortie:', error.message);
     }
 
     return savedSortie;

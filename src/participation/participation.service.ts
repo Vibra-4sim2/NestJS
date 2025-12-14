@@ -6,6 +6,7 @@ import {
   NotFoundException,
   Inject,
   forwardRef,
+  Logger,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
@@ -14,15 +15,20 @@ import { CreateParticipationDto } from './dto/create-participation.dto';
 import { ParticipationStatus } from '../enums/participation-status.enum';
 import { SortieService } from '../sortie/sortie.service';
 import { ChatService } from '../chat/chat.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
 export class ParticipationService {
+  private readonly logger = new Logger(ParticipationService.name);
+
   constructor(
     @InjectModel(Participation.name)
     private participationModel: Model<ParticipationDocument>,
+    @InjectModel('User') private userModel: Model<any>,
     private sortieService: SortieService,
     @Inject(forwardRef(() => ChatService))
     private chatService: ChatService,
+    private notificationsService: NotificationsService,
   ) {}
 
   async create(
@@ -204,6 +210,28 @@ export class ParticipationService {
         console.error('Failed to add user to chat:', error.message);
         // Don't fail the status update if chat update fails
       }
+
+      // 🔔 NOTIFY USER THAT PARTICIPATION WAS ACCEPTED
+      try {
+        const notificationPayload = {
+          title: '✅ Participation acceptée',
+          body: `Votre demande pour "${sortie.titre}" a été acceptée!`,
+          data: {
+            type: 'participation_accepted',
+            sortieId: String(participation.sortieId),
+            sortieTitle: sortie.titre,
+            participationId: String(participation._id),
+          },
+        };
+
+        await this.notificationsService.notifyUsers(
+          [String(participation.userId)],
+          notificationPayload,
+        );
+        this.logger.log('✅ Notification d\'acceptation envoyée');
+      } catch (error) {
+        this.logger.error('❌ Erreur notification acceptation:', error.message);
+      }
     }
 
     // ✅ If participation is rejected, remove user from chat
@@ -218,6 +246,28 @@ export class ParticipationService {
         );
       } catch (error) {
         console.error('Failed to remove user from chat:', error.message);
+      }
+
+      // 🔔 NOTIFY USER THAT PARTICIPATION WAS REJECTED
+      try {
+        const notificationPayload = {
+          title: '❌ Participation refusée',
+          body: `Votre demande pour "${sortie.titre}" a été refusée`,
+          data: {
+            type: 'participation_rejected',
+            sortieId: String(participation.sortieId),
+            sortieTitle: sortie.titre,
+            participationId: String(participation._id),
+          },
+        };
+
+        await this.notificationsService.notifyUsers(
+          [String(participation.userId)],
+          notificationPayload,
+        );
+        this.logger.log('✅ Notification de refus envoyée');
+      } catch (error) {
+        this.logger.error('❌ Erreur notification refus:', error.message);
       }
     }
 

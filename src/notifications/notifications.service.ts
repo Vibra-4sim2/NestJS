@@ -1,7 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
-import { FcmToken, FcmTokenDocument } from './entities/fcm-token.entity';
+import { FcmToken, FcmTokenDocument } from './schemas/fcm-token.schema';
+import { Notification, NotificationDocument } from './schemas/notification.schema';
 import { FirebaseService, NotificationPayload } from '../firebase/firebase.service';
 import { RegisterTokenDto } from './dto/register-token.dto';
 
@@ -12,6 +13,8 @@ export class NotificationsService {
   constructor(
     @InjectModel(FcmToken.name)
     private fcmTokenModel: Model<FcmTokenDocument>,
+    @InjectModel(Notification.name)
+    private notificationModel: Model<NotificationDocument>,
     private firebaseService: FirebaseService,
   ) {}
 
@@ -169,6 +172,7 @@ export class NotificationsService {
 
   /**
    * Envoyer une notification à plusieurs utilisateurs
+   * HYBRID MODE: sends push + persists notification per user
    */
   async notifyUsers(
     userIds: string[],
@@ -181,6 +185,8 @@ export class NotificationsService {
       const tokens = await this.getUsersTokens(cleanIds);
       this.logger.log(`🎫 Tokens actifs trouvés: ${tokens.length} token(s)`);
 
+      // STEP 1: Send push notifications (existing logic - UNTOUCHED)
+      let pushResult = { successCount: 0, failureCount: 0 };
       if (tokens.length === 0) {
         // Vérifier en base de données pour debug (actifs ou non)
         const validIds = cleanIds.filter((id) => Types.ObjectId.isValid(id));
@@ -194,13 +200,30 @@ export class NotificationsService {
             `📋 Tokens en DB: ${JSON.stringify(allTokensInDb.map(t => ({ userId: String(t.userId), isActive: t.isActive })))}`
           );
         }
-        return { successCount: 0, failureCount: 0 };
+      } else {
+        this.logger.log(`📤 Envoi de ${tokens.length} notification(s)...`);
+        pushResult = await this.firebaseService.sendToTokens(tokens, payload);
+        this.logger.log(`✅ Résultat push: ${pushResult.successCount} succès, ${pushResult.failureCount} échecs`);
       }
 
-      this.logger.log(`📤 Envoi de ${tokens.length} notification(s)...`);
-      const result = await this.firebaseService.sendToTokens(tokens, payload);
-      this.logger.log(`✅ Résultat: ${result.successCount} succès, ${result.failureCount} échecs`);
-      return result;
+      // STEP 2: Persist notification per user (NEW - HYBRID MODE)
+      const validIds = cleanIds.filter((id) => Types.ObjectId.isValid(id));
+      if (validIds.length > 0) {
+        const notifications = validIds.map((userId) => ({
+          userId: new Types.ObjectId(userId),
+          title: payload.title,
+          body: payload.body,
+          type: payload.data?.type || 'general',
+          data: payload.data,
+          imageUrl: payload.imageUrl,
+          isRead: false,
+        }));
+
+        await this.notificationModel.insertMany(notifications, { ordered: false });
+        this.logger.log(`💾 ${notifications.length} notification(s) persistées pour polling`);
+      }
+
+      return pushResult;
     } catch (error) {
       this.logger.error(
         'Erreur lors de l\'envoi de notifications à plusieurs utilisateurs',
@@ -272,6 +295,34 @@ export class NotificationsService {
   }
 
   /**
+   * Enqueue notification for scheduled/retry sending
+   */
+  async enqueue(
+    userIds: string[],
+    payload: NotificationPayload,
+    scheduledAt?: Date,
+  ): Promise<Notification> {
+    try {
+      const notification = await this.notificationModel.create({
+        userIds: userIds.map((id) => new Types.ObjectId(id)),
+        title: payload.title,
+        body: payload.body,
+        data: payload.data,
+        imageUrl: payload.imageUrl,
+        scheduledAt: scheduledAt ?? new Date(),
+        status: 'queued',
+        attempts: 0,
+      });
+
+      this.logger.log(`Notification enqueued with ID ${notification._id}`);
+      return notification;
+    } catch (error) {
+      this.logger.error('Error enqueuing notification', error.message);
+      throw error;
+    }
+  }
+
+  /**
    * Nettoyer les tokens inactifs (plus de 90 jours)
    */
   async cleanupInactiveTokens(): Promise<number> {
@@ -291,6 +342,90 @@ export class NotificationsService {
     } catch (error) {
       this.logger.error(
         'Erreur lors du nettoyage des tokens inactifs',
+        error.message,
+      );
+      return 0;
+    }
+  }
+
+  // ========================================
+  // HYBRID MODE: Polling + Local Notifications
+  // ========================================
+
+  /**
+   * Query notifications for polling (mobile clients)
+   */
+  async queryNotifications(
+    userId: string,
+    options: { unreadOnly?: boolean; limit?: number; offset?: number },
+  ): Promise<Notification[]> {
+    try {
+      const { unreadOnly = true, limit = 50, offset = 0 } = options;
+      const query: any = { userId: new Types.ObjectId(userId) };
+
+      if (unreadOnly) {
+        query.isRead = false;
+      }
+
+      const notifications = await this.notificationModel
+        .find(query)
+        .sort({ createdAt: -1 })
+        .skip(offset)
+        .limit(Math.min(limit, 100))
+        .lean();
+
+      return notifications;
+    } catch (error) {
+      this.logger.error(
+        `Erreur lors de la récupération des notifications pour l'utilisateur ${userId}`,
+        error.message,
+      );
+      return [];
+    }
+  }
+
+  /**
+   * Mark notification as read
+   */
+  async markAsRead(notificationId: string, userId: string): Promise<boolean> {
+    try {
+      const result = await this.notificationModel.updateOne(
+        {
+          _id: new Types.ObjectId(notificationId),
+          userId: new Types.ObjectId(userId),
+        },
+        {
+          $set: {
+            isRead: true,
+            readAt: new Date(),
+          },
+        },
+      );
+
+      return result.modifiedCount > 0;
+    } catch (error) {
+      this.logger.error(
+        `Erreur lors du marquage de la notification ${notificationId} comme lue`,
+        error.message,
+      );
+      return false;
+    }
+  }
+
+  /**
+   * Get unread notification count
+   */
+  async getUnreadCount(userId: string): Promise<number> {
+    try {
+      const count = await this.notificationModel.countDocuments({
+        userId: new Types.ObjectId(userId),
+        isRead: false,
+      });
+
+      return count;
+    } catch (error) {
+      this.logger.error(
+        `Erreur lors du comptage des notifications non lues pour l'utilisateur ${userId}`,
         error.message,
       );
       return 0;

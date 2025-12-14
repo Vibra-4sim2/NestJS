@@ -22,6 +22,10 @@ import * as fs from 'fs';
         if (rawEnvJson) {
           try {
             serviceAccount = JSON.parse(rawEnvJson);
+            // Important: convert escaped newlines to real newlines in private_key
+            if (serviceAccount && typeof serviceAccount.private_key === 'string') {
+              serviceAccount.private_key = serviceAccount.private_key.replace(/\\n/g, '\n');
+            }
           } catch {
             console.warn('⚠️  FIREBASE_ADMIN_CREDENTIALS JSON is invalid.');
             serviceAccount = null;

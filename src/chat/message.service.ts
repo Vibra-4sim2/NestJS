@@ -94,8 +94,14 @@ export class MessageService {
         const chatName = sortie?.titre || 'Chat';
         
         // Get all chat members except the sender
+        // Handle both populated (User objects) and unpopulated (ObjectIds) members
         const recipientIds = chat.members
-          .filter(memberId => !memberId.equals(senderObjectId))
+          .map(member => {
+            // If member is populated (has _id property), extract it
+            const memberId = (member as any)._id || member;
+            return memberId;
+          })
+          .filter(memberId => !new Types.ObjectId(String(memberId)).equals(senderObjectId))
           .map(memberId => String(memberId));
 
         if (recipientIds.length > 0) {
