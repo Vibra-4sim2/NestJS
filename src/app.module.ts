@@ -18,6 +18,7 @@ import { RecommendationsModule } from './recommendations/recommendations.module'
 import { RatingModule } from './rating/rating.module';
 import { PollModule } from './poll/poll.module';
 import { NotificationsModule } from './notifications/notifications.module';
+import { ConversationModule } from './conversations/conversation.module';
 
 @Module({
   imports: [
@@ -48,6 +49,7 @@ import { NotificationsModule } from './notifications/notifications.module';
     RatingModule, // ✅ Rating system
     PollModule, // ✅ Poll/survey system for chat
     NotificationsModule, // ✅ Push notifications via Firebase
+    ConversationModule, // ✅ Private messaging between users
   ],
   controllers: [AppController],
   providers: [AppService],
