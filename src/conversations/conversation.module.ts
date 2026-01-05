@@ -6,6 +6,7 @@ import { Conversation, ConversationSchema } from './entities/conversation.schema
 import { DirectMessage, DirectMessageSchema } from './entities/direct-message.schema';
 import { ConversationService } from './conversation.service';
 import { ConversationGateway } from './conversation.gateway';
+import { ConversationController } from './conversation.controller';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { User, UserSchema } from '../users/schemas/user.schema';
 
@@ -38,6 +39,7 @@ import { User, UserSchema } from '../users/schemas/user.schema';
       inject: [ConfigService],
     }),
   ],
+  controllers: [ConversationController],
   providers: [ConversationService, ConversationGateway],
   exports: [ConversationService, ConversationGateway],
 })
